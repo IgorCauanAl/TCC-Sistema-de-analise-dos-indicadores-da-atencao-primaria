@@ -42,7 +42,6 @@ export const ImportedReportsTable = ({ reports, teams, filters, onFilterChange, 
             <option value="all">Todos os resultados</option>
             <option value="imported">Importado</option>
             <option value="importedWithWarnings">Importado com avisos</option>
-            <option value="notImported">Não importado</option>
           </select>
           <input className="form-control px-3 py-2 text-sm outline-none" placeholder="Data de importação" value={filters.date} onChange={(event) => onFilterChange('date', event.target.value)} />
         </div>

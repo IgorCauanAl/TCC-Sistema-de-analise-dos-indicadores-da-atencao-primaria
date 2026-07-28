@@ -76,7 +76,7 @@ const getPendingLabel = (text, index) => {
 
   if (normalizedText.includes('consulta')) return 'Consulta pendente'
   if (normalizedText.includes('pressão') || normalizedText.includes('aferir')) return 'Pressão não registrada'
-  if (normalizedText.includes('visita') || normalizedText.includes('busca ativa')) return 'Visitas pendentes'
+  if (normalizedText.includes('visita')) return 'Visitas pendentes'
   if (normalizedText.includes('peso') || normalizedText.includes('altura')) return 'Peso e altura não registrados'
   if (normalizedText.includes('hemoglobina') || normalizedText.includes('diabetes')) return 'Exame de controle da diabetes pendente'
   if (normalizedText.includes('pé') || normalizedText.includes('pés')) return 'Avaliação dos pés pendente'

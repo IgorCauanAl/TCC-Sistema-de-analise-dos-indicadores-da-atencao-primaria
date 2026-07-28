@@ -21,11 +21,13 @@ import {
 } from '../data/importReportsData'
 
 const importSummary = {
-  received: 10,
+  received: 9,
   imported: 8,
   warning: 1,
-  failed: 1,
+  failed: 0,
 }
+
+const visibleImportedReports = IMPORTED_REPORTS.filter((report) => report.result !== 'notImported')
 
 const buildQueueItem = (file, index) => {
   const demo = DEMO_SELECTED_FILES[index % DEMO_SELECTED_FILES.length]
@@ -144,7 +146,7 @@ export const ImportacaoView = ({ onOpenInconsistencies }) => {
           {importStatus === 'completed' && (
             <div className="space-y-4">
               <ImportSummaryCards summary={importSummary} />
-              <ImportResultTable reports={IMPORTED_REPORTS.slice(0, 3)} teams={IMPORT_TEAMS} onDetails={setSelectedReport} />
+              <ImportResultTable reports={visibleImportedReports.slice(0, 3)} teams={IMPORT_TEAMS} onDetails={setSelectedReport} />
               <UploadDropzone onFilesSelected={handleFilesSelected} />
             </div>
           )}
@@ -174,7 +176,7 @@ export const ImportacaoView = ({ onOpenInconsistencies }) => {
 
       {activeTab === 'imported' && (
         <ImportedReportsTable
-          reports={IMPORTED_REPORTS}
+          reports={visibleImportedReports}
           teams={IMPORT_TEAMS}
           filters={filters}
           onFilterChange={handleFilterChange}

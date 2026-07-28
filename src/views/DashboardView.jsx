@@ -229,11 +229,11 @@ export const DashboardView = ({ onOpenC1, onOpenPatients }) => {
         />
         <SummaryCard
           icon={<Icons.Alert />}
-          label="Zerados"
+          label="Absenteísmo"
           value={`${formatNumber(totals.zerados)} pacientes`}
           footerAction="Ver pacientes"
           tone="danger"
-          onClick={() => onOpenPatients('zerado')}
+          onClick={() => onOpenPatients('absenteismo')}
         />
         <SummaryCard
           icon={<Icons.CheckCircle />}

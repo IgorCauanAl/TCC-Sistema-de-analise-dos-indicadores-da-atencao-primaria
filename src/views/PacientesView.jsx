@@ -34,8 +34,8 @@ const hasSelectedIndicator = (patient, selectedIndicator) => (
 )
 
 const getPatientPendenciesByIndicator = (patient, selectedIndicator) => {
-  if (selectedIndicator === 'C4') return patient.c4Pendencies.map((pendency) => `${pendency.indicator} — ${pendency.label}`)
-  if (selectedIndicator === 'C5') return patient.c5Pendencies.map((pendency) => `${pendency.indicator} — ${pendency.label}`)
+  if (selectedIndicator === 'C4') return patient.c4Pendencies.filter((pendency) => pendency.pendente).map((pendency) => `C4 — ${pendency.codigo}: ${pendency.descricao}`)
+  if (selectedIndicator === 'C5') return patient.c5Pendencies.filter((pendency) => pendency.pendente).map((pendency) => `C5 — ${pendency.codigo}: ${pendency.descricao}`)
   return patient.clinicalPendencies
 }
 
@@ -212,18 +212,29 @@ const riskShortLabels = {
   absenteismo_cronico: 'Absenteísmo Crônico',
 }
 
+const riskBadgeStyles = {
+  moderado: 'bg-green-100 text-green-800',
+  alto: 'bg-yellow-100 text-yellow-800',
+  clinico: 'bg-red-100 text-red-800',
+  absenteismo_recente: 'bg-orange-200 text-orange-900',
+  absenteismo_cronico: 'bg-gray-900 text-white',
+}
+
 const currentQuarterStatusClass = 'border-[rgba(6,154,88,0.24)] bg-[rgba(6,154,88,0.08)] text-[var(--success)]'
 
 const getCurrentQuarterStatusLabel = (status = 'Em andamento') => status.replace(' (Verde)', '')
 
 const RiskHistoryIcon = ({ patient, selectedIndicator }) => {
   const delayHistory = getPatientDelayHistory(patient, selectedIndicator)
-  const label = riskShortLabels[delayHistory.status] || delayHistory.text
+  const label = patient.detalhesHistorico?.classificacao || riskShortLabels[delayHistory.status] || delayHistory.text
 
   return (
-    <span className="inline-flex items-center gap-2" title={delayHistory.text} aria-label={delayHistory.text}>
-      <span className={`h-3 w-3 rounded-full ${riskIconStyles[delayHistory.status] || riskIconStyles.moderado}`} />
-      <span className="text-xs font-semibold text-[var(--text-primary)]">{label}</span>
+    <span
+      className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${riskBadgeStyles[delayHistory.status] || riskBadgeStyles.moderado}`}
+      title={delayHistory.text}
+      aria-label={delayHistory.text}
+    >
+      {label}
     </span>
   )
 }
@@ -233,7 +244,6 @@ const CurrentQuarterStatus = ({ patient }) => (
     <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${currentQuarterStatusClass}`}>
       {getCurrentQuarterStatusLabel(patient.statusQuadrimestreAtual)}
     </span>
-    <p className="mt-1 text-xs text-[var(--text-muted)]">Metas: {patient.metasAtuais}</p>
   </div>
 )
 
@@ -291,15 +301,70 @@ const IndicatorVariablesPanel = ({ variables, emptyText }) => {
   )
 }
 
-const PatientDetailDrawer = ({ patient, classification, selectedIndicator, onClose, onOpenActiveSearch, triggerRef }) => {
+const getAvailableDetailIndicators = (patient, selectedIndicator) => {
+  const available = ['C4', 'C5'].filter((indicator) => patient.variaveisIndicador[indicator])
+
+  if (selectedIndicator !== 'all' && available.includes(selectedIndicator)) return [selectedIndicator]
+  return available
+}
+
+const hasAuditHistoryPendency = (patient) => (
+  patient.previousPendingItems?.some((item) => item.pendente)
+)
+
+const getAuditHistoryQuarter = (patient) => {
+  const quarter = patient.detalhesHistorico?.quadrimestreAtraso?.match(/Q[1-3]-\d{4}/)?.[0]
+
+  if (['Q1-2025', 'Q2-2025', 'Q1-2026', 'Q2-2026'].includes(quarter)) return quarter
+  if (quarter?.endsWith('2025')) return 'Q2-2025'
+  return 'Q1-2026'
+}
+
+const AuditEligibilityAction = ({ patient, selectedIndicator, onOpenAuditHistory, compact = false }) => {
+  if (!hasAuditHistoryPendency(patient)) return null
+
+  const delayHistory = getPatientDelayHistory(patient, selectedIndicator)
+  const label = patient.detalhesHistorico?.classificacao || riskShortLabels[delayHistory.status] || delayHistory.text
+  const explanation = `Paciente elegível para histórico de auditoria porque possui pendência fechada em quadrimestre anterior: ${label}.`
+
+  return (
+    <div
+      className={`flex flex-wrap items-center gap-2 ${compact ? '' : 'rounded-xl border border-[var(--border)] bg-[#f7faff] p-3'}`}
+      title={explanation}
+    >
+      <button
+        type="button"
+        onClick={() => onOpenAuditHistory?.({
+          quarter: getAuditHistoryQuarter(patient),
+          patientName: patient.name,
+        })}
+        className="btn-primary inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold"
+      >
+        Ir para Histórico de Auditoria
+        <Icons.ChevronRight />
+      </button>
+      {!compact && (
+        <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${riskBadgeStyles[delayHistory.status] || riskBadgeStyles.moderado}`}>
+          {label}
+        </span>
+      )}
+      {!compact && (
+        <p className="basis-full text-xs leading-5 text-[var(--text-secondary)]">
+          {explanation}
+        </p>
+      )}
+    </div>
+  )
+}
+
+const PatientDetailDrawer = ({ patient, classification, selectedIndicator, onClose, onOpenAuditHistory, triggerRef }) => {
   const closeButtonRef = useRef(null)
-  const [variablesScope, setVariablesScope] = useState('atual')
+  const availableDetailIndicators = getAvailableDetailIndicators(patient, selectedIndicator)
+  const [detailIndicator, setDetailIndicator] = useState(availableDetailIndicators[0] || 'C4')
   const displayedConditions = patient.condition.filter((condition) => selectedIndicator === 'all' || condition.startsWith(selectedIndicator))
   const delayHistory = getDelayHistoryDetails(patient, selectedIndicator)
   const delayHistoryTextClass = riskTextStyles[delayHistory.status] || riskTextStyles.moderado
-  const activeVariables = variablesScope === 'atual'
-    ? patient.variaveisIndicador.atual
-    : patient.variaveisIndicador.atrasado
+  const activeVariables = patient.variaveisIndicador[detailIndicator]?.atual || []
 
   useEffect(() => {
     const opener = triggerRef.current
@@ -318,11 +383,6 @@ const PatientDetailDrawer = ({ patient, classification, selectedIndicator, onClo
       opener?.focus()
     }
   }, [onClose, triggerRef])
-
-  const handleOpenActiveSearch = () => {
-    onClose()
-    onOpenActiveSearch?.()
-  }
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-[rgba(14,27,51,0.36)]" onMouseDown={onClose}>
@@ -356,7 +416,6 @@ const PatientDetailDrawer = ({ patient, classification, selectedIndicator, onClo
             ['Classificação', classification.label],
             ['Condição acompanhada', displayedConditions.join(' + ')],
             ['Status do quadrimestre atual', getCurrentQuarterStatusLabel(patient.statusQuadrimestreAtual)],
-            ['Metas atuais', patient.metasAtuais],
             ['Origem dos dados', patient.dataOrigin],
             ['Período dos dados', patient.dataPeriod],
           ].map(([label, value]) => (
@@ -384,47 +443,53 @@ const PatientDetailDrawer = ({ patient, classification, selectedIndicator, onClo
         <section className="mt-5 rounded-xl border border-[var(--border)] p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h3 className="text-base font-semibold text-[var(--text-primary)]">Pendências do indicador</h3>
-              <p className="mt-1 text-sm text-[var(--text-secondary)]">Resumo por variável recebida do relatório: A, B, C, D, E e F.</p>
+              <h3 className="text-base font-semibold text-[var(--text-primary)]">Quadrimestre atual do indicador</h3>
+              <p className="mt-1 text-sm text-[var(--text-secondary)]">Resumo atual por variável recebida do relatório: A, B, C, D, E e F.</p>
             </div>
-            <div className="flex rounded-lg border border-[var(--border)] bg-white p-1">
-              {[
-                ['atual', 'Quadrimestre atual'],
-                ['atrasado', 'Histórico atrasado'],
-              ].map(([scope, label]) => (
-                <button
-                  key={scope}
-                  type="button"
-                  onClick={() => setVariablesScope(scope)}
-                  className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
-                    variablesScope === scope
-                      ? 'bg-[var(--primary)] text-white'
-                      : 'text-[var(--text-secondary)] hover:bg-[var(--surface-interactive)] hover:text-[var(--text-primary)]'
-                  }`}
+            <div className="flex flex-wrap items-center gap-2">
+              {availableDetailIndicators.length > 1 && (
+                <label className="sr-only" htmlFor="patient-detail-indicator">Indicador</label>
+              )}
+              {availableDetailIndicators.length > 1 && (
+                <select
+                  id="patient-detail-indicator"
+                  value={detailIndicator}
+                  onChange={(event) => setDetailIndicator(event.target.value)}
+                  className="form-control px-3 py-2 text-xs font-semibold outline-none"
+                  aria-label="Selecionar indicador das pendências"
                 >
-                  {label}
-                </button>
-              ))}
+                  {availableDetailIndicators.map((indicator) => (
+                    <option key={indicator} value={indicator}>{indicator}</option>
+                  ))}
+                </select>
+              )}
             </div>
           </div>
           <div className="mt-4">
             <IndicatorVariablesPanel
               variables={activeVariables}
-              emptyText={variablesScope === 'atual' ? 'Nenhuma pendência atual informada para este indicador.' : 'Nenhuma dívida histórica informada para este indicador.'}
+              emptyText="Nenhuma pendência atual informada para este indicador."
             />
           </div>
         </section>
 
-        <button type="button" onClick={handleOpenActiveSearch} className="btn-primary mt-6 inline-flex w-full items-center justify-center gap-2 px-4 py-2 text-sm font-semibold sm:w-auto">
-          Encaminhar para Busca Ativa e Absenteísmo
-          <Icons.ChevronRight />
-        </button>
+        <div className="mt-5">
+          <AuditEligibilityAction
+            patient={patient}
+            selectedIndicator={selectedIndicator}
+            onOpenAuditHistory={(context) => {
+              onClose()
+              onOpenAuditHistory?.(context)
+            }}
+          />
+        </div>
+
       </aside>
     </div>
   )
 }
 
-export const PacientesView = ({ initialClassification = null, onOpenActiveSearch }) => {
+export const PacientesView = ({ initialClassification = null, onOpenAuditHistory }) => {
   const [selectedIndicator, setSelectedIndicator] = useState('all')
   const [teamQuery, setTeamQuery] = useState('')
   const [selectedTeam, setSelectedTeam] = useState(null)
@@ -547,7 +612,7 @@ export const PacientesView = ({ initialClassification = null, onOpenActiveSearch
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
             {PATIENT_CLASSIFICATIONS.map((category) => {
               const total = teamPatients.filter((patient) => patient.classification === category.id).length
 
@@ -653,15 +718,23 @@ export const PacientesView = ({ initialClassification = null, onOpenActiveSearch
                         <RiskHistoryIcon patient={patient} selectedIndicator={selectedIndicator} />
                       </td>
                       <td>
-                        <button
-                          type="button"
-                          onClick={(event) => handleOpenPatient(patient, event)}
-                          className="inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--primary-dark)] hover:underline"
-                          aria-label={`Detalhar acompanhamento de ${patient.name}`}
-                        >
-                          Detalhar
-                          <Icons.Eye />
-                        </button>
+                        <div className="flex min-w-72 flex-wrap items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={(event) => handleOpenPatient(patient, event)}
+                            className="inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--primary-dark)] hover:underline"
+                            aria-label={`Detalhar acompanhamento de ${patient.name}`}
+                          >
+                            Detalhar
+                            <Icons.Eye />
+                          </button>
+                          <AuditEligibilityAction
+                            patient={patient}
+                            selectedIndicator={selectedIndicator}
+                            onOpenAuditHistory={onOpenAuditHistory}
+                            compact
+                          />
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -680,7 +753,7 @@ export const PacientesView = ({ initialClassification = null, onOpenActiveSearch
           classification={currentClassification}
           selectedIndicator={selectedIndicator}
           onClose={() => setSelectedPatient(null)}
-          onOpenActiveSearch={onOpenActiveSearch}
+          onOpenAuditHistory={onOpenAuditHistory}
           triggerRef={detailTriggerRef}
         />
       )}

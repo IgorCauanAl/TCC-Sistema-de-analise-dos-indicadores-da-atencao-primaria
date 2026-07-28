@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Icons } from '../components/ui/Icons'
-import { DelayHistoryBadge, getDelayHistoryStatus } from '../components/ui/TemporalStatusBadge'
 import { CLINICAL_AUDIT_FINDINGS } from '../data/clinicalAuditData'
 
 const indicatorOptions = [
@@ -9,19 +8,24 @@ const indicatorOptions = [
   { id: 'C5', label: 'C5 Hipertensão' },
 ]
 
-const delayHistoryOptions = [
-  { id: 'all', label: 'Todos os históricos' },
-  { id: 'moderado', label: 'Risco Moderado' },
-  { id: 'alto', label: 'Risco Alto' },
-  { id: 'clinico', label: 'Risco Clínico' },
-  { id: 'absenteismo_recente', label: 'Absenteísmo Recente' },
-  { id: 'absenteismo_cronico', label: 'Absenteísmo Crônico' },
+const classificationOptions = [
+  { id: 'all', label: 'Todas as conclusões' },
+  { id: 'Acompanhamento incompleto', label: 'Acompanhamento incompleto' },
+  { id: 'Sem acompanhamento válido', label: 'Sem acompanhamento válido' },
+]
+
+const searchColumnOptions = [
+  { id: 'all', label: 'Todas as colunas' },
+  { id: 'patient', label: 'Paciente' },
+  { id: 'cpf', label: 'CPF' },
+  { id: 'team', label: 'Equipe/INE' },
+  { id: 'evidence', label: 'Evidência' },
+  { id: 'conclusion', label: 'Conclusão' },
 ]
 
 const classificationStyles = {
   'Sem acompanhamento válido': 'border-[rgba(224,47,53,0.22)] bg-[rgba(224,47,53,0.08)] text-[var(--danger)]',
   'Acompanhamento incompleto': 'border-[rgba(229,109,34,0.24)] bg-[rgba(229,109,34,0.08)] text-[var(--alert)]',
-  'Conclusão próxima': 'border-[rgba(6,154,88,0.22)] bg-[rgba(6,154,88,0.08)] text-[var(--success)]',
 }
 
 const pluralize = (count, singular, plural = `${singular}s`) => `${count} ${count === 1 ? singular : plural}`
@@ -42,19 +46,28 @@ const getTeams = () => {
   return [...teams.values()]
 }
 
-const getSearchValue = (finding) => [
-  finding.patientInitials,
-  finding.cpf,
-  finding.team,
-  finding.ine,
-  finding.classification,
-  finding.delayHistoryText,
-  finding.delayHistoryStatus,
-  finding.inteligencia,
-  finding.acaoRecomendada,
-  finding.evidence,
-  finding.pendingItems.map((item) => `${item.indicator} ${item.name}`).join(' '),
-].join(' ')
+const getSearchValue = (finding, column) => {
+  const values = {
+    patient: finding.patientInitials,
+    cpf: finding.cpf,
+    team: `${finding.team} ${finding.ine}`,
+    evidence: finding.evidence,
+    conclusion: `${finding.classification} ${finding.explainableConclusion}`,
+    all: [
+      finding.patientInitials,
+      finding.cpf,
+      finding.team,
+      finding.ine,
+      finding.classification,
+      finding.inteligencia,
+      finding.acaoRecomendada,
+      finding.evidence,
+      finding.pendingItems.map((item) => `${item.indicator} ${item.name}`).join(' '),
+    ].join(' '),
+  }
+
+  return values[column] || values.all
+}
 
 const SummaryCard = ({ label, value, description, tone }) => {
   const toneClass = tone === 'danger'
@@ -90,7 +103,7 @@ const IndicatorBadge = ({ indicator }) => (
 )
 
 const ClassificationBadge = ({ classification }) => (
-  <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${classificationStyles[classification]}`}>
+  <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${classificationStyles[classification] || classificationStyles['Acompanhamento incompleto']}`}>
     {classification}
   </span>
 )
@@ -111,17 +124,19 @@ const EmptyState = ({ onClear }) => (
 const Filters = ({
   indicatorFilter,
   teamFilter,
-  delayHistoryFilter,
+  classificationFilter,
+  searchColumn,
   query,
   teams,
   resultCount,
   onIndicatorChange,
   onTeamChange,
-  onDelayHistoryChange,
+  onClassificationChange,
+  onSearchColumnChange,
   onQueryChange,
 }) => (
   <section className="app-card p-5">
-    <div className="grid grid-cols-1 gap-3 lg:grid-cols-[12rem_1fr_12rem_1fr]">
+    <div className="grid grid-cols-1 gap-3 lg:grid-cols-[12rem_1fr_14rem_12rem_1fr]">
       <label className="sr-only" htmlFor="clinical-audit-indicator">Indicador</label>
       <select
         id="clinical-audit-indicator"
@@ -149,15 +164,28 @@ const Filters = ({
         ))}
       </select>
 
-      <label className="sr-only" htmlFor="clinical-audit-delay-history">Histórico de atraso</label>
+      <label className="sr-only" htmlFor="clinical-audit-classification">Conclusão</label>
       <select
-        id="clinical-audit-delay-history"
-        value={delayHistoryFilter}
-        onChange={(event) => onDelayHistoryChange(event.target.value)}
+        id="clinical-audit-classification"
+        value={classificationFilter}
+        onChange={(event) => onClassificationChange(event.target.value)}
         className="form-control px-3 py-2 text-sm outline-none"
-        aria-label="Filtrar por histórico de atraso"
+        aria-label="Filtrar por conclusão da auditoria"
       >
-        {delayHistoryOptions.map((option) => (
+        {classificationOptions.map((option) => (
+          <option key={option.id} value={option.id}>{option.label}</option>
+        ))}
+      </select>
+
+      <label className="sr-only" htmlFor="clinical-audit-search-column">Buscar em</label>
+      <select
+        id="clinical-audit-search-column"
+        value={searchColumn}
+        onChange={(event) => onSearchColumnChange(event.target.value)}
+        className="form-control px-3 py-2 text-sm outline-none"
+        aria-label="Selecionar coluna da busca"
+      >
+        {searchColumnOptions.map((option) => (
           <option key={option.id} value={option.id}>{option.label}</option>
         ))}
       </select>
@@ -183,7 +211,7 @@ const FindingsTable = ({ findings, onOpenFinding }) => (
     <table className="data-table min-w-[1120px]">
       <thead>
         <tr>
-          {['Paciente/equipe', 'Indicador', 'Evidência do e-SUS Helper', 'Conclusão da auditoria', 'Histórico de atraso', 'Ação'].map((header) => (
+          {['Paciente/equipe', 'Indicador', 'Evidência do e-SUS Helper', 'Conclusão da auditoria', 'Ação'].map((header) => (
             <th key={header}>{header}</th>
           ))}
         </tr>
@@ -207,12 +235,6 @@ const FindingsTable = ({ findings, onOpenFinding }) => (
             <td className="min-w-56">
               <ClassificationBadge classification={finding.classification} />
               <p className="mt-2 text-xs leading-5 text-[var(--text-muted)]">{finding.explainableConclusion}</p>
-            </td>
-            <td>
-              <DelayHistoryBadge
-                status={getDelayHistoryStatus(finding).status}
-                text={getDelayHistoryStatus(finding).text}
-              />
             </td>
             <td>
               <button
@@ -266,7 +288,7 @@ const EvidenceStatusItem = ({ item, status }) => {
             <p>{item.name}</p>
           </div>
           <p className="mt-1 text-xs font-semibold text-[var(--text-secondary)]">
-            {isDone ? 'Feito no relatório importado' : `Pendente no relatório importado${item.due ? ` - prazo: ${item.due}` : ''}`}
+            {isDone ? 'Feito no relatório importado' : 'Pendente no relatório importado'}
           </p>
         </div>
       </div>
@@ -330,7 +352,6 @@ const FindingDrawer = ({ finding, onClose, triggerRef }) => {
         <dl className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <DetailField label="CPF" value={finding.cpf} />
           <DetailField label="CNS" value={finding.cns} />
-          <DetailField label="Histórico de atraso" value={getDelayHistoryStatus(finding).text} />
           <DetailField label="Resultado" value={finding.classification} />
         </dl>
 
@@ -386,7 +407,8 @@ const FindingDrawer = ({ finding, onClose, triggerRef }) => {
 export const AuditoriaRegistrosClinicosView = () => {
   const [indicatorFilter, setIndicatorFilter] = useState('all')
   const [teamFilter, setTeamFilter] = useState('all')
-  const [delayHistoryFilter, setDelayHistoryFilter] = useState('all')
+  const [classificationFilter, setClassificationFilter] = useState('all')
+  const [searchColumn, setSearchColumn] = useState('all')
   const [query, setQuery] = useState('')
   const [selectedFinding, setSelectedFinding] = useState(null)
   const [updateFeedback, setUpdateFeedback] = useState('')
@@ -394,29 +416,24 @@ export const AuditoriaRegistrosClinicosView = () => {
 
   const teams = useMemo(() => getTeams(), [])
 
-  const summary = useMemo(() => ({
-    audited: CLINICAL_AUDIT_FINDINGS.length,
-    critical: CLINICAL_AUDIT_FINDINGS.filter((finding) => ['clinico', 'absenteismo_cronico'].includes(getDelayHistoryStatus(finding).status)).length,
-    incomplete: CLINICAL_AUDIT_FINDINGS.filter((finding) => finding.classification === 'Acompanhamento incompleto').length,
-  }), [])
-
   const filteredFindings = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
 
     return CLINICAL_AUDIT_FINDINGS.filter((finding) => {
       const matchesIndicator = indicatorFilter === 'all' || finding.indicators.includes(indicatorFilter)
       const matchesTeam = teamFilter === 'all' || finding.ine === teamFilter
-      const matchesDelayHistory = delayHistoryFilter === 'all' || getDelayHistoryStatus(finding).status === delayHistoryFilter
-      const matchesSearch = !normalizedQuery || getSearchValue(finding).toLowerCase().includes(normalizedQuery)
+      const matchesClassification = classificationFilter === 'all' || finding.classification === classificationFilter
+      const matchesSearch = !normalizedQuery || getSearchValue(finding, searchColumn).toLowerCase().includes(normalizedQuery)
 
-      return matchesIndicator && matchesTeam && matchesDelayHistory && matchesSearch
+      return matchesIndicator && matchesTeam && matchesClassification && matchesSearch
     })
-  }, [delayHistoryFilter, indicatorFilter, query, teamFilter])
+  }, [classificationFilter, indicatorFilter, query, searchColumn, teamFilter])
 
   const handleClearFilters = () => {
     setIndicatorFilter('all')
     setTeamFilter('all')
-    setDelayHistoryFilter('all')
+    setClassificationFilter('all')
+    setSearchColumn('all')
     setQuery('')
   }
 
@@ -447,22 +464,18 @@ export const AuditoriaRegistrosClinicosView = () => {
         </div>
       </header>
 
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <SummaryCard label="Registros auditados" value={summary.audited} description="achados analisados na importação" tone="info" />
-        <SummaryCard label="Riscos clínicos" value={summary.critical} description="histórico escalonado para revisão assistencial" tone="danger" />
-        <SummaryCard label="Acompanhamentos incompletos" value={summary.incomplete} description="pendências ainda abertas no ciclo" tone="alert" />
-      </section>
-
       <Filters
         indicatorFilter={indicatorFilter}
         teamFilter={teamFilter}
-        delayHistoryFilter={delayHistoryFilter}
+        classificationFilter={classificationFilter}
+        searchColumn={searchColumn}
         query={query}
         teams={teams}
         resultCount={filteredFindings.length}
         onIndicatorChange={setIndicatorFilter}
         onTeamChange={setTeamFilter}
-        onDelayHistoryChange={setDelayHistoryFilter}
+        onClassificationChange={setClassificationFilter}
+        onSearchColumnChange={setSearchColumn}
         onQueryChange={setQuery}
       />
 

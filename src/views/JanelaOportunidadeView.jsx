@@ -1,17 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { PatientCarePendingSection } from '../components/pacientes/PatientCarePendingSection'
 import { Icons } from '../components/ui/Icons'
-import { DelayHistoryBadge, getDelayHistoryStatus } from '../components/ui/TemporalStatusBadge'
+import { getDelayHistoryStatus } from '../components/ui/TemporalStatusBadge'
 import { OPPORTUNITY_RECORDS } from '../data/opportunityWindowData'
-
-const delayHistoryOptions = [
-  { id: 'all', label: 'Todos os históricos' },
-  { id: 'moderado', label: 'Risco Moderado' },
-  { id: 'alto', label: 'Risco Alto' },
-  { id: 'clinico', label: 'Risco Clínico' },
-  { id: 'absenteismo_recente', label: 'Absenteísmo Recente' },
-  { id: 'absenteismo_cronico', label: 'Absenteísmo Crônico' },
-]
 
 const delayHistoryRank = {
   absenteismo_cronico: 0,
@@ -114,12 +105,6 @@ const sortOpportunities = (records) => [...records].sort((first, second) => {
   return delayHistoryRank[firstStatus] - delayHistoryRank[secondStatus] || first.deadlineDays - second.deadlineDays
 })
 
-const OpportunityDelayHistoryBadge = ({ record }) => {
-  const delayHistory = getOpportunityDelayHistory(record)
-
-  return <DelayHistoryBadge status={delayHistory.status} text={delayHistory.text} />
-}
-
 const ActionChips = ({ items, indicator }) => (
   <div className="flex flex-wrap gap-2">
     {items.map((item) => (
@@ -186,17 +171,15 @@ const OpportunityTeamSelector = ({ teams, selectedTeam, onSelectTeam }) => (
         >
           <span className="block truncate font-semibold text-[var(--text-primary)]">{team.name}</span>
           <span className="mt-2 block text-xs text-[var(--text-muted)]">INE {team.ine}</span>
-          <span className="mt-3 block text-sm font-semibold text-[var(--primary-dark)]">{pluralize(team.eligible, 'paciente elegível')}</span>
-          <span className="mt-1 block text-xs text-[var(--text-muted)]">{pluralize(team.immediate, 'risco escalonado', 'riscos escalonados')} · menor prazo {team.minDeadline} dias</span>
         </button>
       ))}
     </div>
   </section>
 )
 
-const OpportunityFilters = ({ query, delayHistoryFilter, resultCount, hasActiveFilters, onQueryChange, onDelayHistoryChange, onClearFilters }) => (
+const OpportunityFilters = ({ query, resultCount, hasActiveFilters, onQueryChange, onClearFilters }) => (
   <section className="app-card p-5">
-    <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_13rem_auto]">
+    <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto]">
       <label className="form-shell flex items-center px-3 py-2">
         <span className="mr-2 text-[var(--text-muted)]" aria-hidden="true"><Icons.Search /></span>
         <span className="sr-only">Buscar por iniciais, CPF, equipe ou pendência</span>
@@ -208,18 +191,6 @@ const OpportunityFilters = ({ query, delayHistoryFilter, resultCount, hasActiveF
           className="app-input w-full border-0 bg-transparent text-sm text-[var(--text-primary)] outline-none"
         />
       </label>
-      <label className="sr-only" htmlFor="opportunity-delay-history-filter">Histórico de atraso</label>
-      <select
-        id="opportunity-delay-history-filter"
-        value={delayHistoryFilter}
-        onChange={(event) => onDelayHistoryChange(event.target.value)}
-        className="form-control px-3 py-2 text-sm outline-none"
-        aria-label="Filtrar por histórico de atraso"
-      >
-        {delayHistoryOptions.map((option) => (
-          <option key={option.id} value={option.id}>{option.label}</option>
-        ))}
-      </select>
       {hasActiveFilters && (
         <button type="button" onClick={onClearFilters} className="btn-secondary px-4 py-2 text-sm font-semibold">
           Limpar filtros
@@ -235,7 +206,7 @@ const OpportunityTable = ({ records, onOpenPlan }) => (
     <table className="data-table hidden min-w-[1180px] md:table">
       <thead>
         <tr>
-          {['Paciente', 'Equipe/INE', 'CPF', 'Ações C4', 'Ações C5', 'Consulta', 'Histórico de atraso', 'Plano sugerido', 'Ação'].map((header) => (
+          {['Paciente', 'Equipe/INE', 'CPF', 'Ações C4', 'Ações C5', 'Plano sugerido', 'Ação'].map((header) => (
             <th key={header}>{header}</th>
           ))}
         </tr>
@@ -251,10 +222,6 @@ const OpportunityTable = ({ records, onOpenPlan }) => (
             <td className="whitespace-nowrap">{record.cpf}</td>
             <td className="min-w-56"><ActionChips items={record.c4Pending} indicator="C4" /></td>
             <td className="min-w-56"><ActionChips items={record.c5Pending} indicator="C5" /></td>
-            <td className="min-w-48">
-              <span className="block font-semibold text-[var(--text-primary)]">{record.nextAppointment}</span>
-            </td>
-            <td><OpportunityDelayHistoryBadge record={record} /></td>
             <td className="min-w-72">{record.recommendedAction}</td>
             <td>
               <button
@@ -280,7 +247,6 @@ const OpportunityTable = ({ records, onOpenPlan }) => (
               <p className="mt-1 text-xs text-[var(--text-muted)]">{record.team} · INE {record.ine}</p>
               <p className="mt-1 text-xs text-[var(--text-muted)]">CPF {record.cpf}</p>
             </div>
-            <OpportunityDelayHistoryBadge record={record} />
           </div>
           <div className="mt-4 space-y-3">
             <ActionChips items={record.c4Pending} indicator="C4" />
@@ -367,9 +333,6 @@ const OpportunityDetailsDrawer = ({ record, onClose, triggerRef }) => {
         <dl className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <DetailField label="CPF" value={record.cpf} />
           <DetailField label="CNS" value={record.cns} />
-          <DetailField label="Prazo restante" value={`${record.deadlineDays} dias`} />
-          <DetailField label="Histórico de atraso" value={getOpportunityDelayHistory(record).text} />
-          <DetailField label="Situação da consulta" value={record.appointmentStatus} />
         </dl>
 
         <section className="mt-5 grid grid-cols-1 gap-4">
@@ -397,7 +360,6 @@ export const JanelaOportunidadeView = () => {
   const [loadState, setLoadState] = useState('loading')
   const [selectedTeam, setSelectedTeam] = useState(null)
   const [query, setQuery] = useState('')
-  const [delayHistoryFilter, setDelayHistoryFilter] = useState('all')
   const [selectedRecord, setSelectedRecord] = useState(null)
   const [updateFeedback, setUpdateFeedback] = useState('')
   const drawerTriggerRef = useRef(null)
@@ -408,30 +370,27 @@ export const JanelaOportunidadeView = () => {
   }, [])
 
   const teams = useMemo(() => getTeams(), [])
-  const hasActiveFilters = query.trim() || delayHistoryFilter !== 'all'
+  const hasActiveFilters = query.trim()
 
   const filteredRecords = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
 
     const filtered = OPPORTUNITY_RECORDS.filter((record) => {
       const matchesTeam = record.ine === selectedTeam
-      const matchesDelayHistory = delayHistoryFilter === 'all' || getOpportunityDelayHistory(record).status === delayHistoryFilter
       const matchesQuery = !normalizedQuery || getSearchValue(record).toLowerCase().includes(normalizedQuery)
 
-      return matchesTeam && matchesDelayHistory && matchesQuery
+      return matchesTeam && matchesQuery
     })
 
     return sortOpportunities(filtered)
-  }, [delayHistoryFilter, query, selectedTeam])
+  }, [query, selectedTeam])
 
   const handleClearFilters = () => {
-    setDelayHistoryFilter('all')
     setQuery('')
   }
 
   const handleBackToTeams = () => {
     setSelectedTeam(null)
-    setDelayHistoryFilter('all')
     setQuery('')
     setSelectedRecord(null)
   }
@@ -507,11 +466,9 @@ export const JanelaOportunidadeView = () => {
 
               <OpportunityFilters
                 query={query}
-                delayHistoryFilter={delayHistoryFilter}
                 resultCount={filteredRecords.length}
                 hasActiveFilters={Boolean(hasActiveFilters)}
                 onQueryChange={setQuery}
-                onDelayHistoryChange={setDelayHistoryFilter}
                 onClearFilters={handleClearFilters}
               />
 
@@ -520,7 +477,7 @@ export const JanelaOportunidadeView = () => {
               ) : (
                 <OpportunityEmptyState
                   title="Nenhum resultado para os filtros"
-                  description="Revise o histórico de atraso ou termo pesquisado."
+                  description="Revise o termo pesquisado."
                   onAction={handleClearFilters}
                   actionLabel="Limpar filtros"
                 />

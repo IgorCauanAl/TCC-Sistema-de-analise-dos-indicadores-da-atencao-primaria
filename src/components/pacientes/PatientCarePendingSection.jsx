@@ -139,8 +139,8 @@ export const PendingCareDetails = ({ pending, indicator, delayHistoryRecord }) =
       <p className="mt-2 leading-5">{getPendingDetailsText(pending)}</p>
       <dl className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
         <div>
-          <dt className="text-xs font-medium opacity-80">Histórico de atraso</dt>
-          <dd className="font-semibold">{delayHistory.text}</dd>
+          <dt className="text-xs font-medium opacity-80">Risco</dt>
+          <dd className="font-semibold">{config.label}</dd>
         </div>
         <div>
           <dt className="text-xs font-medium opacity-80">Indicador</dt>

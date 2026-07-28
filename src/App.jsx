@@ -2,24 +2,25 @@ import { useState } from 'react'
 import { Icons } from './components/ui/Icons'
 import { Sidebar } from './components/layout/Sidebar'
 import { AuditoriaRegistrosClinicosView } from './views/AuditoriaRegistrosClinicosView'
-import { BuscaAtivaView } from './views/BuscaAtivaView'
 import { CalculoC1View } from './views/CalculoC1View'
 import { DashboardView } from './views/DashboardView'
 import { InconsistenciaView } from './views/InconsistenciaView'
 import { ImportacaoView } from './views/ImportacaoView'
 import { JanelaOportunidadeView } from './views/JanelaOportunidadeView'
+import { ModuloHistorico } from './views/ModuloHistorico'
 import { PacientesView } from './views/PacientesView'
 
 export default function App() {
   const [activeModule, setActiveModule] = useState('dashboard')
   const [initialPatientClassification, setInitialPatientClassification] = useState(null)
+  const [auditHistoryContext, setAuditHistoryContext] = useState(null)
 
   const menuItems = [
     { id: 'dashboard', label: 'Página Inicial', icon: <Icons.Home /> },
     { id: 'importacao', label: 'Importação de Relatórios', icon: <Icons.Upload /> },
     { id: 'pacientes', label: 'Pacientes', icon: <Icons.User /> },
+    { id: 'historicoAuditoria', label: 'Histórico de Auditoria', icon: <Icons.Calendar /> },
     { id: 'inconsistencia', label: 'Inconsistências', icon: <Icons.Alert /> },
-    { id: 'buscaAtiva', label: 'Busca Ativa (ACS)', icon: <Icons.User /> },
     { id: 'auditoriaRegistros', label: 'Auditoria dos Registros Clínicos', icon: <Icons.Activity /> },
     { id: 'calculoC1', label: 'Cálculo C1 - Mais Acesso', icon: <Icons.Calculator /> },
     { id: 'janelaOportunidade', label: 'Janela de Oportunidade', icon: <Icons.Activity /> },
@@ -27,6 +28,7 @@ export default function App() {
 
   const handleChangeModule = (moduleId) => {
     setInitialPatientClassification(null)
+    setAuditHistoryContext(null)
     setActiveModule(moduleId)
   }
 
@@ -45,11 +47,24 @@ export default function App() {
       case 'importacao':
         return <ImportacaoView onOpenInconsistencies={() => setActiveModule('inconsistencia')} />
       case 'pacientes':
-        return <PacientesView initialClassification={initialPatientClassification} onOpenActiveSearch={() => setActiveModule('buscaAtiva')} />
+        return (
+          <PacientesView
+            initialClassification={initialPatientClassification}
+            onOpenAuditHistory={(context) => {
+              setAuditHistoryContext(context)
+              setActiveModule('historicoAuditoria')
+            }}
+          />
+        )
+      case 'historicoAuditoria':
+        return (
+          <ModuloHistorico
+            initialQuarter={auditHistoryContext?.quarter || null}
+            initialPatientName={auditHistoryContext?.patientName || null}
+          />
+        )
       case 'inconsistencia':
         return <InconsistenciaView />
-      case 'buscaAtiva':
-        return <BuscaAtivaView />
       case 'auditoriaRegistros':
         return <AuditoriaRegistrosClinicosView />
       case 'calculoC1':
