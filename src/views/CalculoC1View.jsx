@@ -12,6 +12,21 @@ const toneStyles = {
   info: 'border-[rgba(22,103,232,0.2)] bg-[rgba(22,103,232,0.08)] text-[var(--primary-dark)]',
 }
 
+const monthOptions = [
+  { id: '01', label: 'Janeiro' },
+  { id: '02', label: 'Fevereiro' },
+  { id: '03', label: 'Março' },
+  { id: '04', label: 'Abril' },
+  { id: '05', label: 'Maio' },
+  { id: '06', label: 'Junho' },
+  { id: '07', label: 'Julho' },
+  { id: '08', label: 'Agosto' },
+  { id: '09', label: 'Setembro' },
+  { id: '10', label: 'Outubro' },
+  { id: '11', label: 'Novembro' },
+  { id: '12', label: 'Dezembro' },
+]
+
 const evolutionTone = (value) => {
   if (value > 0) return 'text-[var(--success)]'
   if (value < 0) return 'text-[var(--danger)]'
@@ -50,7 +65,7 @@ const DetailItem = ({ label, value }) => (
   </div>
 )
 
-const CalculationDrawer = ({ team, quadrimester, situation, onClose, triggerRef }) => {
+const CalculationDrawer = ({ team, quadrimester, monthLabel, situation, onClose, triggerRef }) => {
   const closeButtonRef = useRef(null)
   const currentResult = getTeamResult(team)
   const totalConsidered = getTotalConsidered(team)
@@ -79,6 +94,7 @@ const CalculationDrawer = ({ team, quadrimester, situation, onClose, triggerRef 
     const rows = [
       `Equipe: ${team.name}`,
       `Quadrimestre: ${quadrimester.label}`,
+      `Mes de competencia: ${monthLabel}`,
       `Resultado atual: ${formatDetailedPercent(currentResult)}`,
       `Resultado anterior: ${formatDetailedPercent(team.previousResult)}`,
       `Evolucao: ${formatPercentagePoints(evolution)}`,
@@ -115,7 +131,7 @@ const CalculationDrawer = ({ team, quadrimester, situation, onClose, triggerRef 
           <div>
             <p className="text-sm font-medium text-[var(--text-muted)]">Memória de cálculo</p>
             <h2 id="c1-calculation-title" className="mt-1 text-2xl font-semibold text-[var(--text-primary)]">{team.name}</h2>
-            <p className="mt-1 text-sm text-[var(--text-secondary)]">{quadrimester.label}</p>
+            <p className="mt-1 text-sm text-[var(--text-secondary)]">{quadrimester.label} · {monthLabel}</p>
           </div>
           <button ref={closeButtonRef} type="button" onClick={onClose} className="btn-secondary h-10 px-3 text-sm font-semibold">
             Fechar
@@ -124,6 +140,7 @@ const CalculationDrawer = ({ team, quadrimester, situation, onClose, triggerRef 
 
         <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <DetailItem label="Resultado atual" value={formatDetailedPercent(currentResult)} />
+          <DetailItem label="Mês de competência" value={monthLabel} />
           <DetailItem label="Resultado anterior" value={formatDetailedPercent(team.previousResult)} />
           <DetailItem label="Evolução" value={formatPercentagePoints(evolution)} />
           <DetailItem label="Situação" value={situation.label} />
@@ -171,7 +188,8 @@ const CalculationDrawer = ({ team, quadrimester, situation, onClose, triggerRef 
 export const CalculoC1View = () => {
   const quadrimesters = useMemo(() => getC1Quadrimesters(), [])
   const situations = useMemo(() => getC1Situations(), [])
-  const [selectedQuadrimester, setSelectedQuadrimester] = useState(quadrimesters[0].id)
+  const selectedQuadrimester = quadrimesters[0].id
+  const [selectedMonth, setSelectedMonth] = useState('07')
   const [teamQuery, setTeamQuery] = useState('')
   const [sortDirection, setSortDirection] = useState('desc')
   const [isFormulaOpen, setIsFormulaOpen] = useState(true)
@@ -181,6 +199,8 @@ export const CalculoC1View = () => {
   const detailTriggerRef = useRef(null)
 
   const dataset = useMemo(() => getC1Dataset(selectedQuadrimester), [selectedQuadrimester])
+  const selectedYear = selectedQuadrimester.split('-')[0]
+  const selectedMonthLabel = `${monthOptions.find((month) => month.id === selectedMonth)?.label || 'Julho'} de ${selectedYear}`
   const summary = useMemo(() => getMunicipalSummary(dataset.teams, situations), [dataset.teams, situations])
 
   const teams = useMemo(() => (
@@ -234,19 +254,20 @@ export const CalculoC1View = () => {
       </header>
 
       <section className="app-card p-5" aria-label="Filtros do C1">
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[18rem_1fr_auto]">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[14rem_1fr_auto]">
           <label className="block">
-            <span className="text-sm font-semibold text-[var(--text-secondary)]">Quadrimestre</span>
+            <span className="text-sm font-semibold text-[var(--text-secondary)]">Mês de competência</span>
             <select
-              value={selectedQuadrimester}
+              value={selectedMonth}
               onChange={(event) => {
-                setSelectedQuadrimester(event.target.value)
+                setSelectedMonth(event.target.value)
                 setSelectedTeamId(null)
               }}
               className="form-control mt-2 w-full px-3 py-2 text-sm outline-none"
+              aria-label="Selecionar mês de competência do C1"
             >
-              {quadrimesters.map((quadrimester) => (
-                <option key={quadrimester.id} value={quadrimester.id}>{quadrimester.label}</option>
+              {monthOptions.map((month) => (
+                <option key={month.id} value={month.id}>{month.label}</option>
               ))}
             </select>
           </label>
@@ -267,6 +288,7 @@ export const CalculoC1View = () => {
           <div className="rounded-xl border border-[var(--border-subtle)] bg-[#f7faff] px-4 py-3 text-sm">
             <p className="font-semibold text-[var(--text-primary)]">Processamento</p>
             <p className="mt-1 text-[var(--text-secondary)]">{formatDateTime(dataset.processingDate)}</p>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">Competência: {selectedMonthLabel}</p>
           </div>
         </div>
       </section>
@@ -344,7 +366,7 @@ export const CalculoC1View = () => {
             </p>
             <p className="mt-3 text-sm text-[var(--text-secondary)]">{municipalFormulaExample}</p>
             <dl className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-4">
-              <DetailItem label="Período considerado" value={dataset.period} />
+              <DetailItem label="Período considerado" value={selectedMonthLabel} />
               <DetailItem label="Fonte dos dados" value={dataset.dataSource} />
               <DetailItem label="Versão da metodologia" value={dataset.methodologyVersion} />
               <DetailItem label="Processamento" value={formatDateTime(dataset.processingDate)} />
@@ -428,6 +450,7 @@ export const CalculoC1View = () => {
         <CalculationDrawer
           team={selectedTeam}
           quadrimester={dataset}
+          monthLabel={selectedMonthLabel}
           situation={situations[selectedTeam.situationKey]}
           onClose={() => setSelectedTeamId(null)}
           triggerRef={detailTriggerRef}

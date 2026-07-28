@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Icons } from '../components/ui/Icons'
-import { IMPORT_AUDIT_METADATA, MISSING_CPF_RECORDS } from '../data/inconsistenciesData'
+import { MISSING_CPF_RECORDS } from '../data/inconsistenciesData'
 
 const filterColumns = [
   { id: 'all', label: 'Todas as colunas' },
@@ -32,13 +32,26 @@ const getMissingCpfSearchValue = (record, column) => {
   return record[column] || ''
 }
 
-const SummaryCard = ({ label, value, description }) => (
-  <article className="app-card p-5">
-    <p className="text-sm font-medium text-[var(--text-secondary)]">{label}</p>
-    <p className="mt-3 text-3xl font-semibold text-[var(--text-primary)]">{value}</p>
-    <p className="mt-2 text-sm leading-5 text-[var(--text-muted)]">{description}</p>
+const SummaryCard = ({ label, value, description, icon, tone = 'primary' }) => {
+  const toneClass = {
+    primary: 'bg-[rgba(22,103,232,0.08)] text-[var(--primary-dark)]',
+    alert: 'bg-[rgba(229,109,34,0.1)] text-[var(--alert)]',
+    success: 'bg-[rgba(6,154,88,0.08)] text-[var(--success)]',
+  }[tone]
+
+  return (
+  <article className="app-card flex items-start justify-between gap-4 p-5">
+    <div>
+      <p className="text-sm font-medium text-[var(--text-secondary)]">{label}</p>
+      <p className="mt-3 text-3xl font-semibold text-[var(--text-primary)]">{value}</p>
+      <p className="mt-2 text-sm leading-5 text-[var(--text-muted)]">{description}</p>
+    </div>
+    <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl ${toneClass}`} aria-hidden="true">
+      {icon}
+    </span>
   </article>
-)
+  )
+}
 
 const InconsistencySummary = ({ missingCpfCount, typeCount, affectedTeamsCount }) => (
   <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -46,16 +59,22 @@ const InconsistencySummary = ({ missingCpfCount, typeCount, affectedTeamsCount }
       label="Registros para revisar"
       value={missingCpfCount}
       description="Sem alteração automática nos cadastros"
+      icon={<Icons.Alert />}
+      tone="alert"
     />
     <SummaryCard
       label="Tipos identificados"
       value={typeCount}
       description="Ausência de CPF"
+      icon={<Icons.Activity />}
+      tone="primary"
     />
     <SummaryCard
       label="Equipes envolvidas"
       value={affectedTeamsCount}
       description="Conferência distribuída por equipe de origem"
+      icon={<Icons.User />}
+      tone="success"
     />
   </section>
 )
@@ -280,13 +299,6 @@ const DashboardHeader = () => (
       <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--text-secondary)]">
         Identifique registros que precisam de conferência antes da análise dos indicadores C4 e C5.
       </p>
-    </div>
-    <div className="app-card flex items-center gap-3 px-4 py-3">
-      <span className="h-3 w-3 rounded-full bg-[var(--success)]" aria-hidden="true" />
-      <span>
-        <span className="block text-sm font-semibold text-[var(--text-primary)]">Última importação analisada</span>
-        <span className="mt-1 block text-xs text-[var(--text-muted)]">{IMPORT_AUDIT_METADATA.lastImportAnalyzedAt}</span>
-      </span>
     </div>
   </header>
 )
