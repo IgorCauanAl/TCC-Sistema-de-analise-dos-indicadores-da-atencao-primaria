@@ -5,23 +5,23 @@ import { MOCK_PATIENTS } from '../data/mockData'
 export const PendenciasView = () => (
   <div>
     <PageHeader title="Fechamento de Pendências" subtitle="Acompanhamento de correções e registros faltantes" />
-    <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
+    <div className="app-card overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+        <table className="data-table">
+          <thead>
             <tr>
               {['Usuário', 'UBS', 'Pendências', 'Status'].map((header) => (
-                <th key={header} className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">{header}</th>
+                <th key={header}>{header}</th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100 bg-white">
+          <tbody>
             {MOCK_PATIENTS.map((patient) => (
               <tr key={patient.id}>
-                <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900">{patient.name}</td>
-                <td className="px-6 py-4 text-sm text-gray-600">{patient.ubs}</td>
-                <td className="px-6 py-4 text-sm text-gray-600">{patient.pendencias.length ? patient.pendencias.join(', ') : 'Sem pendências'}</td>
-                <td className="px-6 py-4"><StatusBadge type={patient.status} /></td>
+                <td className="whitespace-nowrap">{patient.name}</td>
+                <td>{patient.ubs}</td>
+                <td>{patient.pendencias.length ? patient.pendencias.join(', ') : 'Sem pendências'}</td>
+                <td><StatusBadge type={patient.status} /></td>
               </tr>
             ))}
           </tbody>

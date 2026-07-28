@@ -1,68 +1,443 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Icons } from '../components/ui/Icons'
-import { PageHeader } from '../components/ui/PageHeader'
-import { MOCK_PATIENTS } from '../data/mockData'
+import { getDelayHistoryStatus } from '../components/ui/TemporalStatusBadge'
+import { PATIENT_CLASSIFICATIONS, PATIENT_MODULE_DATA } from '../data/pacientesModuleData'
 
-const patientCategories = [
-  {
-    id: 'quase_regularizado',
-    label: 'Quase regularizados',
-    helper: 'Pacientes com poucas pendências para conclusão.',
-    color: 'border-l-green-500 text-green-600',
-  },
-  {
-    id: 'parcial',
-    label: 'Acompanhamento parcial',
-    helper: 'Pacientes com acompanhamento incompleto.',
-    color: 'border-l-yellow-500 text-yellow-600',
-  },
-  {
-    id: 'zerado',
-    label: 'Zerados',
-    helper: 'Pacientes sem acompanhamento válido no ciclo.',
-    color: 'border-l-red-500 text-red-600',
-  },
+const stepLabels = [
+  { id: 'team', label: 'Equipe' },
+  { id: 'classification', label: 'Classificação' },
+  { id: 'patients', label: 'Pacientes' },
 ]
+
+const toneStyles = {
+  success: 'border-[rgba(6,154,88,0.24)] bg-[rgba(6,154,88,0.08)] text-[var(--success)]',
+  alert: 'border-[rgba(229,109,34,0.26)] bg-[rgba(229,109,34,0.08)] text-[var(--alert)]',
+  danger: 'border-[rgba(224,47,53,0.24)] bg-[rgba(224,47,53,0.08)] text-[var(--danger)]',
+  info: 'border-[rgba(22,103,232,0.2)] bg-[rgba(22,103,232,0.08)] text-[var(--primary-dark)]',
+}
 
 const filterColumns = [
   { id: 'all', label: 'Todas as colunas' },
   { id: 'name', label: 'Nome' },
   { id: 'cpf', label: 'CPF' },
-  { id: 'pendencias', label: 'Pendências' },
+  { id: 'pendencies', label: 'Pendências' },
 ]
 
-const getColumnValue = (patient, column) => {
-  if (column === 'pendencias') return patient.pendencias.join(' ')
-  if (column === 'all') return `${patient.name} ${patient.cpf} ${patient.pendencias.join(' ')}`
+const indicatorOptions = [
+  { id: 'all', label: 'Todos os indicadores' },
+  { id: 'C4', label: 'C4 — Diabetes' },
+  { id: 'C5', label: 'C5 — Hipertensão' },
+]
+
+const hasSelectedIndicator = (patient, selectedIndicator) => (
+  selectedIndicator === 'all' || patient.condition.some((condition) => condition.startsWith(selectedIndicator))
+)
+
+const getPatientPendenciesByIndicator = (patient, selectedIndicator) => {
+  if (selectedIndicator === 'C4') return patient.c4Pendencies.map((pendency) => `${pendency.indicator} — ${pendency.label}`)
+  if (selectedIndicator === 'C5') return patient.c5Pendencies.map((pendency) => `${pendency.indicator} — ${pendency.label}`)
+  return patient.clinicalPendencies
+}
+
+const getPatientDelayHistory = (patient, selectedIndicator) => {
+  const pendencies = selectedIndicator === 'C4'
+    ? patient.c4Pendencies
+    : selectedIndicator === 'C5'
+      ? patient.c5Pendencies
+      : [...patient.c4Pendencies, ...patient.c5Pendencies]
+
+  return getDelayHistoryStatus(patient, { pendingItems: pendencies, indicator: selectedIndicator === 'all' ? null : selectedIndicator })
+}
+
+const getStep = (selectedTeam, selectedClassification) => {
+  if (selectedTeam && selectedClassification) return 'patients'
+  if (selectedClassification) return 'patients'
+  if (selectedTeam) return 'classification'
+  return 'team'
+}
+
+const getPatientSearchValue = (patient, column, selectedIndicator) => {
+  const pendencies = getPatientPendenciesByIndicator(patient, selectedIndicator)
+
+  if (column === 'pendencies') return pendencies.join(' ')
+  if (column === 'all') return `${patient.name} ${patient.cpf} ${patient.indicador} ${patient.metasAtuais} ${pendencies.join(' ')}`
   return patient[column] || ''
 }
 
-const getTeams = () => {
+const getTeams = (patients) => {
   const teams = new Map()
 
-  MOCK_PATIENTS.forEach((patient) => {
-    if (!teams.has(patient.ubs)) {
-      teams.set(patient.ubs, {
+  patients.forEach((patient) => {
+    if (!teams.has(patient.teamId)) {
+      teams.set(patient.teamId, {
+        id: patient.teamId,
         name: patient.ubs,
         ine: patient.ine,
         patients: 0,
       })
     }
 
-    teams.get(patient.ubs).patients += 1
+    teams.get(patient.teamId).patients += 1
   })
 
   return [...teams.values()]
 }
 
-export const PacientesView = () => {
+const IndicatorSelect = ({ value, onChange, compact = false }) => (
+  <label className={compact ? 'block min-w-56' : 'block'}>
+    <span className="text-sm font-semibold text-[var(--text-secondary)]">Indicador</span>
+    <select
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      className="form-control mt-2 w-full px-3 py-2 text-sm outline-none"
+    >
+      {indicatorOptions.map((indicator) => (
+        <option key={indicator.id} value={indicator.id}>{indicator.label}</option>
+      ))}
+    </select>
+  </label>
+)
+
+const StepIndicator = ({ currentStep }) => {
+  const currentIndex = stepLabels.findIndex((step) => step.id === currentStep)
+
+  return (
+    <ol className="flex flex-wrap items-center gap-2" aria-label="Etapas do módulo Pacientes">
+      {stepLabels.map((step, index) => {
+        const isCurrent = step.id === currentStep
+        const isDone = index < currentIndex
+
+        return (
+          <li key={step.id} className="flex items-center gap-2">
+            <span className={`grid h-7 w-7 place-items-center rounded-full border text-xs font-semibold ${
+              isCurrent
+                ? 'border-[var(--primary)] bg-[var(--primary)] text-white'
+                : isDone
+                  ? 'border-[rgba(6,154,88,0.28)] bg-[rgba(6,154,88,0.08)] text-[var(--success)]'
+                  : 'border-[var(--border)] bg-white text-[var(--text-muted)]'
+            }`}>
+              {index + 1}
+            </span>
+            <span className={`text-xs font-semibold ${isCurrent ? 'text-[var(--primary-dark)]' : isDone ? 'text-[var(--success)]' : 'text-[var(--text-muted)]'}`}>
+              {step.label}
+            </span>
+            {index < stepLabels.length - 1 && <span className="h-px w-10 bg-[var(--border)]" aria-hidden="true" />}
+          </li>
+        )
+      })}
+    </ol>
+  )
+}
+
+const PageShell = ({ currentStep, children }) => (
+  <div className="space-y-6">
+    <header className="flex flex-wrap items-start justify-between gap-4">
+      <div>
+        <h1 className="text-2xl font-semibold text-[var(--text-primary)]">Pacientes</h1>
+        <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">Seleção por equipe, classificação de acompanhamento e pendências individuais</p>
+      </div>
+      <StepIndicator currentStep={currentStep} />
+    </header>
+    {children}
+  </div>
+)
+
+const TeamCard = ({ team, onSelect }) => (
+  <button
+    type="button"
+    onClick={() => onSelect(team)}
+    className="app-card flex min-h-28 items-center justify-between gap-4 p-5 text-left transition hover:border-[rgba(22,103,232,0.34)] hover:bg-[var(--surface-interactive)]"
+    aria-label={`Selecionar equipe ${team.name}, INE ${team.ine}`}
+  >
+    <span>
+      <span className="block font-semibold text-[var(--text-primary)]">{team.name}</span>
+      <span className="mt-3 block text-xs text-[var(--text-muted)]">INE {team.ine}</span>
+    </span>
+    <span className="flex items-center gap-4">
+      <span className="soft-pill px-3 py-1 text-xs font-semibold">
+        {team.patients} {team.patients === 1 ? 'paciente' : 'pacientes'}
+      </span>
+      <span className="text-xl text-[var(--text-muted)]" aria-hidden="true">›</span>
+    </span>
+  </button>
+)
+
+const ClassificationCard = ({ category, total, onSelect }) => (
+  <button
+    type="button"
+    onClick={() => onSelect(category.id)}
+    className={`app-card flex min-h-36 flex-col justify-between border-l-4 p-5 text-left transition hover:bg-[var(--surface-interactive)] ${toneStyles[category.tone]}`}
+    aria-label={`Selecionar classificação ${category.label}, ${total} pacientes`}
+  >
+    <div className="flex items-center justify-between gap-3">
+      <span className="font-semibold">{category.label}</span>
+      <span className="text-xl" aria-hidden="true">›</span>
+    </div>
+    <div>
+      <p className="text-3xl font-semibold text-[var(--text-primary)]">
+        {total} <span className="text-sm font-normal text-[var(--text-secondary)]">{total === 1 ? 'paciente' : 'pacientes'}</span>
+      </p>
+      <p className="mt-3 text-sm leading-5 text-[var(--text-muted)]">{category.helper}</p>
+    </div>
+  </button>
+)
+
+const EmptyState = () => (
+  <div className="app-card px-6 py-10 text-center text-sm text-[var(--text-muted)]">
+    Nenhum paciente nesta seleção.
+  </div>
+)
+
+const riskIconStyles = {
+  moderado: 'bg-[var(--success)]',
+  alto: 'bg-[var(--warning)]',
+  clinico: 'bg-[var(--danger)]',
+  absenteismo_recente: 'bg-[#9a3412]',
+  absenteismo_cronico: 'bg-[#0e1b33]',
+}
+
+const riskTextStyles = {
+  moderado: 'text-[var(--success)]',
+  alto: 'text-[var(--warning)]',
+  clinico: 'text-[var(--danger)]',
+  absenteismo_recente: 'text-[#9a3412]',
+  absenteismo_cronico: 'text-[#0e1b33]',
+}
+
+const riskShortLabels = {
+  moderado: 'Risco Moderado',
+  alto: 'Risco Alto',
+  clinico: 'Risco Clínico',
+  absenteismo_recente: 'Absenteísmo Recente',
+  absenteismo_cronico: 'Absenteísmo Crônico',
+}
+
+const currentQuarterStatusClass = 'border-[rgba(6,154,88,0.24)] bg-[rgba(6,154,88,0.08)] text-[var(--success)]'
+
+const getCurrentQuarterStatusLabel = (status = 'Em andamento') => status.replace(' (Verde)', '')
+
+const RiskHistoryIcon = ({ patient, selectedIndicator }) => {
+  const delayHistory = getPatientDelayHistory(patient, selectedIndicator)
+  const label = riskShortLabels[delayHistory.status] || delayHistory.text
+
+  return (
+    <span className="inline-flex items-center gap-2" title={delayHistory.text} aria-label={delayHistory.text}>
+      <span className={`h-3 w-3 rounded-full ${riskIconStyles[delayHistory.status] || riskIconStyles.moderado}`} />
+      <span className="text-xs font-semibold text-[var(--text-primary)]">{label}</span>
+    </span>
+  )
+}
+
+const CurrentQuarterStatus = ({ patient }) => (
+  <div className="min-w-44">
+    <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${currentQuarterStatusClass}`}>
+      {getCurrentQuarterStatusLabel(patient.statusQuadrimestreAtual)}
+    </span>
+    <p className="mt-1 text-xs text-[var(--text-muted)]">Metas: {patient.metasAtuais}</p>
+  </div>
+)
+
+const getDelayHistoryDetails = (patient, selectedIndicator) => {
+  const delayHistory = getPatientDelayHistory(patient, selectedIndicator)
+  const details = patient.detalhesHistorico || {}
+
+  return {
+    status: delayHistory.status,
+    label: details.classificacao ? `${details.classificacao}${delayHistory.status === 'clinico' ? ' - Vermelho' : delayHistory.status === 'alto' ? ' - Amarelo' : ''}` : delayHistory.text,
+    quadrimestreAtraso: details.quadrimestreAtraso || 'Quadrimestre atual',
+    diasAtraso: details.diasAtraso ?? 0,
+    procedimentoPendente: details.procedimentoPendente || patient.clinicalPendencies[0] || 'Pendência não especificada',
+    inteligencia: details.inteligencia || 'Meta atual em andamento; histórico usado para priorização do acompanhamento.',
+  }
+}
+
+const VariableStatusBadge = ({ variable }) => (
+  <span className={`rounded-full border px-2 py-0.5 text-[0.68rem] font-semibold ${
+    variable.pendente
+      ? 'border-[rgba(224,47,53,0.24)] bg-[rgba(224,47,53,0.08)] text-[var(--danger)]'
+      : 'border-[rgba(6,154,88,0.22)] bg-[rgba(6,154,88,0.08)] text-[var(--success)]'
+  }`}>
+    {variable.status}
+  </span>
+)
+
+const IndicatorVariablesPanel = ({ variables, emptyText }) => {
+  if (!variables.length) {
+    return (
+      <div className="rounded-xl border border-[rgba(6,154,88,0.22)] bg-[rgba(6,154,88,0.08)] p-4 text-sm font-semibold text-[var(--success)]">
+        {emptyText}
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-2">
+      {variables.map((variable) => (
+        <div key={`${variable.codigo}-${variable.descricao}`} className="rounded-xl border border-[var(--border-subtle)] bg-[#f7faff] p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-[var(--text-primary)]">{variable.codigo}: {variable.descricao}</p>
+              {variable.quadrimestre && (
+                <p className="mt-1 text-xs text-[var(--text-muted)]">
+                  Origem: {variable.quadrimestre} · atraso aproximado: {variable.diasAtraso} dias
+                </p>
+              )}
+            </div>
+            <VariableStatusBadge variable={variable} />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+const PatientDetailDrawer = ({ patient, classification, selectedIndicator, onClose, onOpenActiveSearch, triggerRef }) => {
+  const closeButtonRef = useRef(null)
+  const [variablesScope, setVariablesScope] = useState('atual')
+  const displayedConditions = patient.condition.filter((condition) => selectedIndicator === 'all' || condition.startsWith(selectedIndicator))
+  const delayHistory = getDelayHistoryDetails(patient, selectedIndicator)
+  const delayHistoryTextClass = riskTextStyles[delayHistory.status] || riskTextStyles.moderado
+  const activeVariables = variablesScope === 'atual'
+    ? patient.variaveisIndicador.atual
+    : patient.variaveisIndicador.atrasado
+
+  useEffect(() => {
+    const opener = triggerRef.current
+    closeButtonRef.current?.focus()
+    document.body.style.overflow = 'hidden'
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') onClose()
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      document.body.style.overflow = ''
+      opener?.focus()
+    }
+  }, [onClose, triggerRef])
+
+  const handleOpenActiveSearch = () => {
+    onClose()
+    onOpenActiveSearch?.()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-[rgba(14,27,51,0.36)]" onMouseDown={onClose}>
+      <aside
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="patient-detail-title"
+        className="h-full w-full max-w-xl overflow-y-auto bg-white p-6 shadow-[-20px_0_44px_rgba(25,55,95,0.18)]"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--primary-dark)]">Detalhamento do acompanhamento</p>
+            <h2 id="patient-detail-title" className="mt-3 text-2xl font-semibold text-[var(--text-primary)]">{patient.name}</h2>
+            <p className="mt-2 text-sm text-[var(--text-secondary)]">{patient.ubs} · {patient.dataPeriod}</p>
+          </div>
+          <button ref={closeButtonRef} type="button" onClick={onClose} className="btn-secondary h-10 px-3 text-sm font-semibold" aria-label="Fechar detalhamento">
+            Fechar
+          </button>
+        </div>
+
+        <section className="mt-6 rounded-xl border border-[rgba(22,103,232,0.22)] bg-[rgba(22,103,232,0.06)] p-4">
+          <p className="text-sm font-semibold text-[var(--text-primary)]">Identificação protegida</p>
+          <p className="mt-2 text-sm text-[var(--text-secondary)]">CPF {patient.cpf}</p>
+          <p className="mt-1 text-sm text-[var(--text-secondary)]">CNS {patient.cns}</p>
+        </section>
+
+        <dl className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {[
+            ['Equipe', patient.ubs],
+            ['Classificação', classification.label],
+            ['Condição acompanhada', displayedConditions.join(' + ')],
+            ['Status do quadrimestre atual', getCurrentQuarterStatusLabel(patient.statusQuadrimestreAtual)],
+            ['Metas atuais', patient.metasAtuais],
+            ['Origem dos dados', patient.dataOrigin],
+            ['Período dos dados', patient.dataPeriod],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-xl border border-[var(--border-subtle)] bg-[#f7faff] p-3">
+              <dt className="text-xs font-medium text-[var(--text-muted)]">{label}</dt>
+              <dd className="mt-1 text-sm font-semibold text-[var(--text-primary)]">{value}</dd>
+            </div>
+          ))}
+        </dl>
+
+        <section className="mt-5 rounded-xl border border-[var(--border)] p-4">
+          <div className="flex items-start gap-3">
+            <span className={`mt-1 h-3.5 w-3.5 shrink-0 rounded-full ${riskIconStyles[delayHistory.status] || riskIconStyles.moderado}`} aria-hidden="true" />
+            <div>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--text-muted)]">Detalhes Temporais Clínicos</h3>
+              <p className={`mt-2 text-base font-semibold ${delayHistoryTextClass}`}>{delayHistory.label}</p>
+              <p className="mt-3 text-sm leading-6 text-[var(--text-secondary)]">
+                Atrasado desde o {delayHistory.quadrimestreAtraso} (aprox. {delayHistory.diasAtraso} dias) — Procedimento pendente: {delayHistory.procedimentoPendente}.
+              </p>
+              <p className="mt-3 text-sm leading-6 text-[var(--text-secondary)]">{delayHistory.inteligencia}</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-5 rounded-xl border border-[var(--border)] p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-base font-semibold text-[var(--text-primary)]">Pendências do indicador</h3>
+              <p className="mt-1 text-sm text-[var(--text-secondary)]">Resumo por variável recebida do relatório: A, B, C, D, E e F.</p>
+            </div>
+            <div className="flex rounded-lg border border-[var(--border)] bg-white p-1">
+              {[
+                ['atual', 'Quadrimestre atual'],
+                ['atrasado', 'Histórico atrasado'],
+              ].map(([scope, label]) => (
+                <button
+                  key={scope}
+                  type="button"
+                  onClick={() => setVariablesScope(scope)}
+                  className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                    variablesScope === scope
+                      ? 'bg-[var(--primary)] text-white'
+                      : 'text-[var(--text-secondary)] hover:bg-[var(--surface-interactive)] hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="mt-4">
+            <IndicatorVariablesPanel
+              variables={activeVariables}
+              emptyText={variablesScope === 'atual' ? 'Nenhuma pendência atual informada para este indicador.' : 'Nenhuma dívida histórica informada para este indicador.'}
+            />
+          </div>
+        </section>
+
+        <button type="button" onClick={handleOpenActiveSearch} className="btn-primary mt-6 inline-flex w-full items-center justify-center gap-2 px-4 py-2 text-sm font-semibold sm:w-auto">
+          Encaminhar para Busca Ativa e Absenteísmo
+          <Icons.ChevronRight />
+        </button>
+      </aside>
+    </div>
+  )
+}
+
+export const PacientesView = ({ initialClassification = null, onOpenActiveSearch }) => {
+  const [selectedIndicator, setSelectedIndicator] = useState('all')
   const [teamQuery, setTeamQuery] = useState('')
   const [selectedTeam, setSelectedTeam] = useState(null)
-  const [selectedCategory, setSelectedCategory] = useState(null)
+  const [selectedClassification, setSelectedClassification] = useState(initialClassification)
   const [patientQuery, setPatientQuery] = useState('')
   const [filterColumn, setFilterColumn] = useState('all')
+  const [selectedPatient, setSelectedPatient] = useState(null)
+  const detailTriggerRef = useRef(null)
 
-  const teams = useMemo(() => getTeams(), [])
+  const indicatorPatients = useMemo(() => (
+    PATIENT_MODULE_DATA.filter((patient) => hasSelectedIndicator(patient, selectedIndicator))
+  ), [selectedIndicator])
+  const teams = useMemo(() => getTeams(indicatorPatients), [indicatorPatients])
   const filteredTeams = useMemo(() => {
     const normalizedQuery = teamQuery.trim().toLowerCase()
 
@@ -74,209 +449,241 @@ export const PacientesView = () => {
   }, [teamQuery, teams])
 
   const teamPatients = useMemo(() => (
-    selectedTeam ? MOCK_PATIENTS.filter((patient) => patient.ubs === selectedTeam.name) : []
-  ), [selectedTeam])
+    selectedTeam ? indicatorPatients.filter((patient) => patient.teamId === selectedTeam.id) : indicatorPatients
+  ), [indicatorPatients, selectedTeam])
 
   const listedPatients = useMemo(() => {
     const normalizedQuery = patientQuery.trim().toLowerCase()
-    const categoryPatients = teamPatients.filter((patient) => patient.pacientesStatus === selectedCategory)
+    const classificationPatients = teamPatients.filter((patient) => patient.classification === selectedClassification)
 
-    if (!normalizedQuery) return categoryPatients
+    if (!normalizedQuery) return classificationPatients
 
-    return categoryPatients.filter((patient) => (
-      getColumnValue(patient, filterColumn).toLowerCase().includes(normalizedQuery)
+    return classificationPatients.filter((patient) => (
+      getPatientSearchValue(patient, filterColumn, selectedIndicator).toLowerCase().includes(normalizedQuery)
     ))
-  }, [filterColumn, patientQuery, selectedCategory, teamPatients])
+  }, [filterColumn, patientQuery, selectedClassification, selectedIndicator, teamPatients])
+
+  const currentStep = getStep(selectedTeam, selectedClassification)
+  const currentClassification = PATIENT_CLASSIFICATIONS.find((classification) => classification.id === selectedClassification)
 
   const handleSelectTeam = (team) => {
     setSelectedTeam(team)
-    setSelectedCategory(null)
+    setSelectedClassification(null)
     setPatientQuery('')
   }
 
   const handleBackToTeams = () => {
     setSelectedTeam(null)
-    setSelectedCategory(null)
+    setSelectedClassification(null)
     setPatientQuery('')
+    setSelectedPatient(null)
   }
 
-  const handleBackToCategories = () => {
-    setSelectedCategory(null)
+  const handleBackToClassifications = () => {
+    setSelectedClassification(null)
     setPatientQuery('')
+    setSelectedPatient(null)
+  }
+
+  const handleOpenPatient = (patient, event) => {
+    detailTriggerRef.current = event.currentTarget
+    setSelectedPatient(patient)
+  }
+
+  const handleSelectIndicator = (indicator) => {
+    setSelectedIndicator(indicator)
+    setSelectedTeam(null)
+    setSelectedClassification(null)
+    setPatientQuery('')
+    setTeamQuery('')
+    setSelectedPatient(null)
   }
 
   return (
-    <div className="space-y-6">
-      <PageHeader title="Pacientes" subtitle="Seleção por equipe, classificação de acompanhamento e pendências individuais" />
-
-      {!selectedTeam && (
+    <PageShell currentStep={currentStep}>
+      {!selectedTeam && !selectedClassification && (
         <section className="space-y-4">
-          <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
-            <label className="text-sm font-semibold text-gray-700" htmlFor="patient-team-search">Buscar equipe ou INE</label>
-            <div className="mt-2 flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
-              <span className="mr-2 text-gray-400"><Icons.Search /></span>
-              <input
-                id="patient-team-search"
-                type="text"
-                value={teamQuery}
-                onChange={(event) => setTeamQuery(event.target.value)}
-                placeholder="Digite o nome da equipe ou o INE"
-                className="w-full border-0 text-sm text-gray-700 outline-none placeholder:text-gray-400"
-              />
+          <div className="app-card p-5">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-[16rem_1fr]">
+              <IndicatorSelect value={selectedIndicator} onChange={handleSelectIndicator} />
+              <label className="block" htmlFor="patient-team-search">
+                <span className="text-sm font-semibold text-[var(--text-secondary)]">Buscar equipe ou INE</span>
+                <div className="form-shell mt-2 flex items-center px-3 py-2">
+                  <span className="mr-2 text-[var(--text-muted)]"><Icons.Search /></span>
+                  <input
+                    id="patient-team-search"
+                    type="search"
+                    value={teamQuery}
+                    onChange={(event) => setTeamQuery(event.target.value)}
+                    placeholder="Digite o nome da equipe ou o INE"
+                    className="app-input w-full border-0 bg-transparent text-sm text-[var(--text-primary)] outline-none"
+                  />
+                </div>
+              </label>
             </div>
           </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {filteredTeams.map((team) => (
-              <button
-                key={team.ine}
-                type="button"
-                onClick={() => handleSelectTeam(team)}
-                className="rounded-lg border border-gray-200 bg-white p-5 text-left shadow-sm transition hover:border-blue-300 hover:shadow-md"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h2 className="font-semibold text-gray-900">{team.name}</h2>
-                    <p className="mt-1 text-sm text-gray-500">INE {team.ine}</p>
-                  </div>
-                  <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
-                    {team.patients} pacientes
-                  </span>
-                </div>
-              </button>
+              <TeamCard key={team.id} team={team} onSelect={handleSelectTeam} />
             ))}
           </div>
         </section>
       )}
 
-      {selectedTeam && !selectedCategory && (
+      {selectedTeam && !selectedClassification && (
         <section className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-medium text-gray-500">Equipe selecionada</p>
-              <h2 className="text-xl font-bold text-gray-900">{selectedTeam.name}</h2>
-              <p className="text-sm text-gray-500">INE {selectedTeam.ine}</p>
+              <p className="text-sm font-medium text-[var(--text-muted)]">Equipe selecionada</p>
+              <h2 className="text-2xl font-semibold text-[var(--text-primary)]">{selectedTeam.name}</h2>
+              <p className="mt-1 text-sm text-[var(--text-muted)]">INE {selectedTeam.ine}</p>
             </div>
-            <button
-              type="button"
-              onClick={handleBackToTeams}
-              className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50"
-            >
-              Voltar para equipes
-            </button>
+            <div className="flex flex-wrap items-end gap-3">
+              <IndicatorSelect value={selectedIndicator} onChange={handleSelectIndicator} compact />
+              <button type="button" onClick={handleBackToTeams} className="btn-secondary px-4 py-2 text-sm font-semibold">
+                Voltar para equipes
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-            {patientCategories.map((category) => {
-              const total = teamPatients.filter((patient) => patient.pacientesStatus === category.id).length
+            {PATIENT_CLASSIFICATIONS.map((category) => {
+              const total = teamPatients.filter((patient) => patient.classification === category.id).length
 
               return (
-                <button
+                <ClassificationCard
                   key={category.id}
-                  type="button"
-                  onClick={() => setSelectedCategory(category.id)}
-                  className={`rounded-lg border border-l-4 border-gray-200 bg-white p-5 text-left shadow-sm transition hover:shadow-md ${category.color}`}
-                >
-                  <span className="text-sm font-semibold">{category.label}</span>
-                  <div className="mt-3 text-3xl font-bold text-gray-900">
-                    {total} <span className="text-sm font-normal text-gray-500">pacientes</span>
-                  </div>
-                  <p className="mt-2 text-xs text-gray-500">{category.helper}</p>
-                </button>
+                  category={category}
+                  total={total}
+                  onSelect={setSelectedClassification}
+                />
               )
             })}
           </div>
         </section>
       )}
 
-      {selectedTeam && selectedCategory && (
+      {selectedClassification && (
         <section className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-medium text-gray-500">{selectedTeam.name} · INE {selectedTeam.ine}</p>
-              <h2 className="text-xl font-bold text-gray-900">
-                {patientCategories.find((category) => category.id === selectedCategory)?.label}
-              </h2>
+              <p className="text-sm font-medium text-[var(--text-muted)]">
+                {selectedTeam ? `${selectedTeam.name} · INE ${selectedTeam.ine}` : 'Todas as equipes'}
+              </p>
+              <h2 className="text-2xl font-semibold text-[var(--text-primary)]">{currentClassification.label}</h2>
+              <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                {selectedTeam ? 'Pacientes da equipe com esta classificação de acompanhamento.' : 'Pacientes com esta classificação de acompanhamento.'}
+              </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={handleBackToCategories}
-                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50"
-              >
-                Voltar para classificações
-              </button>
-              <button
-                type="button"
-                onClick={handleBackToTeams}
-                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50"
-              >
-                Voltar para equipes
+              {selectedTeam && (
+                <button type="button" onClick={handleBackToClassifications} className="btn-secondary px-4 py-2 text-sm font-semibold">
+                  Classificações
+                </button>
+              )}
+              <button type="button" onClick={handleBackToTeams} className="btn-secondary px-4 py-2 text-sm font-semibold">
+                Equipes
               </button>
             </div>
           </div>
 
-          <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-[12rem_1fr]">
-              <select
-                value={filterColumn}
-                onChange={(event) => setFilterColumn(event.target.value)}
-                className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-              >
-                {filterColumns.map((column) => (
-                  <option key={column.id} value={column.id}>{column.label}</option>
-                ))}
-              </select>
-              <div className="flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
-                <span className="mr-2 text-gray-400"><Icons.Search /></span>
-                <input
-                  type="text"
-                  value={patientQuery}
-                  onChange={(event) => setPatientQuery(event.target.value)}
-                  placeholder="Buscar na lista de pacientes"
-                  className="w-full border-0 text-sm text-gray-700 outline-none placeholder:text-gray-400"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  {['Nome', 'CPF', 'Pendências'].map((header) => (
-                    <th key={header} className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">{header}</th>
+          <div className="app-card p-5">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-[16rem_12rem_1fr]">
+              <IndicatorSelect value={selectedIndicator} onChange={handleSelectIndicator} />
+              <label className="block" htmlFor="patient-filter-column">
+                <span className="text-sm font-semibold text-[var(--text-secondary)]">Buscar em</span>
+                <select
+                  id="patient-filter-column"
+                  value={filterColumn}
+                  onChange={(event) => setFilterColumn(event.target.value)}
+                  className="form-control mt-2 w-full px-3 py-2 text-sm outline-none"
+                >
+                  {filterColumns.map((column) => (
+                    <option key={column.id} value={column.id}>{column.label}</option>
                   ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 bg-white">
-                {listedPatients.map((patient) => (
-                  <tr key={patient.id}>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900">{patient.name}</td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">{patient.cpf}</td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-wrap gap-2">
-                        {patient.pendencias.map((item) => (
-                          <span key={item} className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
-                            {item}
-                          </span>
-                        ))}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {!listedPatients.length && (
-                  <tr>
-                    <td className="px-6 py-8 text-center text-sm text-gray-500" colSpan="3">
-                      Nenhum paciente encontrado para o filtro selecionado.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                </select>
+              </label>
+              <label className="block">
+                <span className="text-sm font-semibold text-[var(--text-secondary)]">Buscar paciente</span>
+                <span className="form-shell mt-2 flex items-center px-3 py-2">
+                  <span className="mr-2 text-[var(--text-muted)]"><Icons.Search /></span>
+                  <span className="sr-only">Buscar na lista de pacientes</span>
+                  <input
+                    type="search"
+                    value={patientQuery}
+                    onChange={(event) => setPatientQuery(event.target.value)}
+                    placeholder="Buscar na lista de pacientes"
+                    className="app-input w-full border-0 bg-transparent text-sm text-[var(--text-primary)] outline-none"
+                  />
+                </span>
+              </label>
+            </div>
           </div>
+
+          {listedPatients.length ? (
+            <div className="app-card overflow-x-auto">
+              <div className="flex items-center justify-between gap-4 border-b border-[var(--border-subtle)] px-5 py-4">
+                <div>
+                  <h3 className="font-semibold text-[var(--text-primary)]">Pacientes encontrados</h3>
+                  <p className="mt-1 text-xs text-[var(--text-muted)]">{listedPatients.length} {listedPatients.length === 1 ? 'registro demonstrativo' : 'registros demonstrativos'}</p>
+                </div>
+                <p className="text-xs font-medium text-[var(--text-muted)]">Identificadores parcialmente ocultos</p>
+              </div>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    {['Paciente', 'CPF', 'Indicador', 'Status do Quadrimestre Atual', 'Histórico de Atraso', 'Detalhes'].map((header) => (
+                      <th key={header}>{header}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {listedPatients.map((patient) => (
+                    <tr key={patient.id}>
+                      <td className="whitespace-nowrap">{patient.name}</td>
+                      <td className="whitespace-nowrap">{patient.cpf}</td>
+                      <td>
+                        <span className="rounded-full border border-[rgba(22,103,232,0.2)] bg-[rgba(22,103,232,0.08)] px-2.5 py-1 text-xs font-semibold text-[var(--primary-dark)]">
+                          {patient.indicador}
+                        </span>
+                      </td>
+                      <td><CurrentQuarterStatus patient={patient} /></td>
+                      <td>
+                        <RiskHistoryIcon patient={patient} selectedIndicator={selectedIndicator} />
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          onClick={(event) => handleOpenPatient(patient, event)}
+                          className="inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--primary-dark)] hover:underline"
+                          aria-label={`Detalhar acompanhamento de ${patient.name}`}
+                        >
+                          Detalhar
+                          <Icons.Eye />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <EmptyState />
+          )}
         </section>
       )}
-    </div>
+
+      {selectedPatient && (
+        <PatientDetailDrawer
+          patient={selectedPatient}
+          classification={currentClassification}
+          selectedIndicator={selectedIndicator}
+          onClose={() => setSelectedPatient(null)}
+          onOpenActiveSearch={onOpenActiveSearch}
+          triggerRef={detailTriggerRef}
+        />
+      )}
+    </PageShell>
   )
 }

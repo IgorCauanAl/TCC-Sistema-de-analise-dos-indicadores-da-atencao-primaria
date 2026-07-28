@@ -1,199 +1,483 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Icons } from '../components/ui/Icons'
-import { PageHeader } from '../components/ui/PageHeader'
-import { MOCK_CLINICAL_AUDIT_PATIENTS } from '../data/mockData'
+import { DelayHistoryBadge, getDelayHistoryStatus } from '../components/ui/TemporalStatusBadge'
+import { CLINICAL_AUDIT_FINDINGS } from '../data/clinicalAuditData'
 
-const indicatorCards = [
-  {
-    id: 'c4',
-    label: 'C4 - Diabético',
-    helper: 'Auditoria de registros clínicos relacionados ao acompanhamento de diabetes.',
-    color: 'border-l-blue-500 text-blue-600',
-  },
-  {
-    id: 'c5',
-    label: 'C5 - Hipertenso',
-    helper: 'Auditoria de registros clínicos relacionados ao acompanhamento de hipertensão.',
-    color: 'border-l-red-500 text-red-600',
-  },
+const indicatorOptions = [
+  { id: 'all', label: 'Todos os indicadores' },
+  { id: 'C4', label: 'C4 Diabetes' },
+  { id: 'C5', label: 'C5 Hipertensão' },
 ]
 
-const getTeamsByIndicator = (indicator) => {
+const delayHistoryOptions = [
+  { id: 'all', label: 'Todos os históricos' },
+  { id: 'moderado', label: 'Risco Moderado' },
+  { id: 'alto', label: 'Risco Alto' },
+  { id: 'clinico', label: 'Risco Clínico' },
+  { id: 'absenteismo_recente', label: 'Absenteísmo Recente' },
+  { id: 'absenteismo_cronico', label: 'Absenteísmo Crônico' },
+]
+
+const classificationStyles = {
+  'Sem acompanhamento válido': 'border-[rgba(224,47,53,0.22)] bg-[rgba(224,47,53,0.08)] text-[var(--danger)]',
+  'Acompanhamento incompleto': 'border-[rgba(229,109,34,0.24)] bg-[rgba(229,109,34,0.08)] text-[var(--alert)]',
+  'Conclusão próxima': 'border-[rgba(6,154,88,0.22)] bg-[rgba(6,154,88,0.08)] text-[var(--success)]',
+}
+
+const pluralize = (count, singular, plural = `${singular}s`) => `${count} ${count === 1 ? singular : plural}`
+
+const getTeams = () => {
   const teams = new Map()
 
-  MOCK_CLINICAL_AUDIT_PATIENTS.filter((patient) => patient.indicator === indicator).forEach((patient) => {
-    if (!teams.has(patient.equipe)) {
-      teams.set(patient.equipe, {
-        name: patient.equipe,
-        ine: patient.ine,
-        patients: 0,
+  CLINICAL_AUDIT_FINDINGS.forEach((finding) => {
+    if (!teams.has(finding.ine)) {
+      teams.set(finding.ine, {
+        id: finding.ine,
+        label: finding.team,
+        ine: finding.ine,
       })
     }
-
-    teams.get(patient.equipe).patients += 1
   })
 
   return [...teams.values()]
 }
 
-export const AuditoriaRegistrosClinicosView = () => {
-  const [selectedIndicator, setSelectedIndicator] = useState(null)
-  const [selectedTeam, setSelectedTeam] = useState(null)
+const getSearchValue = (finding) => [
+  finding.patientInitials,
+  finding.cpf,
+  finding.team,
+  finding.ine,
+  finding.classification,
+  finding.delayHistoryText,
+  finding.delayHistoryStatus,
+  finding.inteligencia,
+  finding.acaoRecomendada,
+  finding.evidence,
+  finding.pendingItems.map((item) => `${item.indicator} ${item.name}`).join(' '),
+].join(' ')
 
-  const indicatorPatients = useMemo(() => (
-    selectedIndicator
-      ? MOCK_CLINICAL_AUDIT_PATIENTS.filter((patient) => patient.indicator === selectedIndicator)
-      : []
-  ), [selectedIndicator])
-
-  const teams = useMemo(() => (
-    selectedIndicator ? getTeamsByIndicator(selectedIndicator) : []
-  ), [selectedIndicator])
-
-  const teamPatients = useMemo(() => (
-    selectedTeam
-      ? indicatorPatients.filter((patient) => patient.equipe === selectedTeam.name)
-      : []
-  ), [indicatorPatients, selectedTeam])
-
-  const handleSelectIndicator = (indicator) => {
-    setSelectedIndicator(indicator)
-    setSelectedTeam(null)
-  }
-
-  const handleBackToIndicators = () => {
-    setSelectedIndicator(null)
-    setSelectedTeam(null)
-  }
+const SummaryCard = ({ label, value, description, tone }) => {
+  const toneClass = tone === 'danger'
+    ? 'bg-[rgba(224,47,53,0.08)] text-[var(--danger)]'
+    : tone === 'alert'
+      ? 'bg-[rgba(229,109,34,0.08)] text-[var(--alert)]'
+      : tone === 'success'
+        ? 'bg-[rgba(6,154,88,0.08)] text-[var(--success)]'
+        : 'bg-[rgba(22,103,232,0.08)] text-[var(--primary-dark)]'
 
   return (
-    <div className="space-y-6">
-      <PageHeader title="Auditoria dos Registros Clínicos" subtitle="Identificação de consultas com registros incompletos para C4 e C5" />
+    <article className="app-card flex items-center gap-4 p-5">
+      <div className={`grid h-12 w-12 shrink-0 place-items-center rounded-xl text-lg font-semibold ${toneClass}`} aria-hidden="true">
+        <Icons.Activity />
+      </div>
+      <div>
+        <p className="text-sm font-medium text-[var(--text-secondary)]">{label}</p>
+        <p className="mt-2 text-3xl font-semibold text-[var(--text-primary)]">{value}</p>
+        <p className="mt-1 text-xs leading-5 text-[var(--text-muted)]">{description}</p>
+      </div>
+    </article>
+  )
+}
 
-      {!selectedIndicator && (
-        <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {indicatorCards.map((indicator) => {
-            const total = MOCK_CLINICAL_AUDIT_PATIENTS.filter((patient) => patient.indicator === indicator.id).length
+const IndicatorBadge = ({ indicator }) => (
+  <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${
+    indicator === 'C4'
+      ? 'border-[rgba(126,87,194,0.18)] bg-[rgba(126,87,194,0.1)] text-[#5f43a8]'
+      : 'border-[rgba(53,167,184,0.2)] bg-[rgba(53,167,184,0.1)] text-[#116b7a]'
+  }`}>
+    {indicator === 'C4' ? 'C4 Diabetes' : 'C5 Hipertensão'}
+  </span>
+)
 
-            return (
+const ClassificationBadge = ({ classification }) => (
+  <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${classificationStyles[classification]}`}>
+    {classification}
+  </span>
+)
+
+const EmptyState = ({ onClear }) => (
+  <section className="app-card px-6 py-12 text-center">
+    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-[rgba(22,103,232,0.18)] bg-[rgba(22,103,232,0.08)] text-[var(--primary)]" aria-hidden="true">
+      <Icons.Search />
+    </div>
+    <h3 className="mt-4 text-lg font-semibold text-[var(--text-primary)]">Nenhum achado encontrado</h3>
+    <p className="mt-2 text-sm text-[var(--text-muted)]">Revise os filtros ou o termo usado na busca.</p>
+    <button type="button" onClick={onClear} className="btn-secondary mt-5 px-4 py-2 text-sm font-semibold">
+      Limpar filtros
+    </button>
+  </section>
+)
+
+const Filters = ({
+  indicatorFilter,
+  teamFilter,
+  delayHistoryFilter,
+  query,
+  teams,
+  resultCount,
+  onIndicatorChange,
+  onTeamChange,
+  onDelayHistoryChange,
+  onQueryChange,
+}) => (
+  <section className="app-card p-5">
+    <div className="grid grid-cols-1 gap-3 lg:grid-cols-[12rem_1fr_12rem_1fr]">
+      <label className="sr-only" htmlFor="clinical-audit-indicator">Indicador</label>
+      <select
+        id="clinical-audit-indicator"
+        value={indicatorFilter}
+        onChange={(event) => onIndicatorChange(event.target.value)}
+        className="form-control px-3 py-2 text-sm outline-none"
+        aria-label="Filtrar por indicador"
+      >
+        {indicatorOptions.map((option) => (
+          <option key={option.id} value={option.id}>{option.label}</option>
+        ))}
+      </select>
+
+      <label className="sr-only" htmlFor="clinical-audit-team">Equipe</label>
+      <select
+        id="clinical-audit-team"
+        value={teamFilter}
+        onChange={(event) => onTeamChange(event.target.value)}
+        className="form-control px-3 py-2 text-sm outline-none"
+        aria-label="Filtrar por equipe"
+      >
+        <option value="all">Todas as equipes</option>
+        {teams.map((team) => (
+          <option key={team.id} value={team.id}>{team.label} — INE {team.ine}</option>
+        ))}
+      </select>
+
+      <label className="sr-only" htmlFor="clinical-audit-delay-history">Histórico de atraso</label>
+      <select
+        id="clinical-audit-delay-history"
+        value={delayHistoryFilter}
+        onChange={(event) => onDelayHistoryChange(event.target.value)}
+        className="form-control px-3 py-2 text-sm outline-none"
+        aria-label="Filtrar por histórico de atraso"
+      >
+        {delayHistoryOptions.map((option) => (
+          <option key={option.id} value={option.id}>{option.label}</option>
+        ))}
+      </select>
+
+      <label className="form-shell flex items-center px-3 py-2">
+        <span className="mr-2 text-[var(--text-muted)]" aria-hidden="true"><Icons.Search /></span>
+        <span className="sr-only">Buscar por paciente, equipe, regra ou pendência</span>
+        <input
+          type="search"
+          value={query}
+          onChange={(event) => onQueryChange(event.target.value)}
+          placeholder="Buscar por paciente, equipe, regra ou pendência"
+          className="app-input w-full border-0 bg-transparent text-sm text-[var(--text-primary)] outline-none"
+        />
+      </label>
+    </div>
+    <p className="mt-4 text-sm text-[var(--text-muted)]">{pluralize(resultCount, 'resultado encontrado', 'resultados encontrados')}</p>
+  </section>
+)
+
+const FindingsTable = ({ findings, onOpenFinding }) => (
+  <div className="app-card overflow-x-auto">
+    <table className="data-table min-w-[1120px]">
+      <thead>
+        <tr>
+          {['Paciente/equipe', 'Indicador', 'Evidência do e-SUS Helper', 'Conclusão da auditoria', 'Histórico de atraso', 'Ação'].map((header) => (
+            <th key={header}>{header}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {findings.map((finding) => (
+          <tr key={finding.id}>
+            <td className="whitespace-nowrap">
+              <span className="block">{finding.patientInitials}</span>
+              <span className="mt-1 block text-xs font-normal text-[var(--text-muted)]">CPF {finding.cpf}</span>
+              <span className="mt-2 block text-xs font-normal text-[var(--text-muted)]">{finding.team} · INE {finding.ine}</span>
+            </td>
+            <td>
+              <div className="flex flex-wrap gap-2">
+                {finding.indicators.map((indicator) => <IndicatorBadge key={indicator} indicator={indicator} />)}
+              </div>
+            </td>
+            <td className="min-w-80">
+              <p className="line-clamp-3 text-sm leading-5 text-[var(--text-secondary)]">{finding.evidence}</p>
+            </td>
+            <td className="min-w-56">
+              <ClassificationBadge classification={finding.classification} />
+              <p className="mt-2 text-xs leading-5 text-[var(--text-muted)]">{finding.explainableConclusion}</p>
+            </td>
+            <td>
+              <DelayHistoryBadge
+                status={getDelayHistoryStatus(finding).status}
+                text={getDelayHistoryStatus(finding).text}
+              />
+            </td>
+            <td>
               <button
-                key={indicator.id}
                 type="button"
-                onClick={() => handleSelectIndicator(indicator.id)}
-                className={`rounded-lg border border-l-4 border-gray-200 bg-white p-5 text-left shadow-sm transition hover:shadow-md ${indicator.color}`}
+                onClick={(event) => onOpenFinding(finding, event)}
+                className="text-sm font-semibold text-[var(--primary-dark)] hover:underline"
+                aria-label={`Ver análise de ${finding.patientInitials}`}
               >
-                <div className="flex items-center">
-                  <Icons.Activity />
-                  <span className="ml-2 text-sm font-semibold">{indicator.label}</span>
-                </div>
-                <div className="mt-3 text-3xl font-bold text-gray-900">
-                  {total} <span className="text-sm font-normal text-gray-500">pacientes</span>
-                </div>
-                <p className="mt-2 text-xs text-gray-500">{indicator.helper}</p>
+                Ver análise
               </button>
-            )
-          })}
-        </section>
-      )}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+)
 
-      {selectedIndicator && !selectedTeam && (
-        <section className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-medium text-gray-500">Indicador selecionado</p>
-              <h2 className="text-xl font-bold text-gray-900">
-                {indicatorCards.find((indicator) => indicator.id === selectedIndicator)?.label}
-              </h2>
-            </div>
-            <button
-              type="button"
-              onClick={handleBackToIndicators}
-              className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50"
-            >
-              Voltar para indicadores
-            </button>
+const DetailField = ({ label, value }) => (
+  <div className="rounded-xl border border-[var(--border-subtle)] bg-[#f7faff] p-3">
+    <dt className="text-xs font-medium uppercase text-[var(--text-muted)]">{label}</dt>
+    <dd className="mt-1 text-sm font-semibold text-[var(--text-primary)]">{value}</dd>
+  </div>
+)
+
+const AuditIndicatorSymbol = ({ indicator }) => (
+  <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg border text-xs font-semibold ${
+    indicator === 'C4'
+      ? 'border-[rgba(126,87,194,0.18)] bg-[rgba(126,87,194,0.1)] text-[#5f43a8]'
+      : 'border-[rgba(53,167,184,0.2)] bg-[rgba(53,167,184,0.1)] text-[#116b7a]'
+  }`}>
+    {indicator}
+  </span>
+)
+
+const EvidenceStatusItem = ({ item, status }) => {
+  const isDone = status === 'done'
+  const Icon = isDone ? Icons.CheckCircle : Icons.Alert
+
+  return (
+    <div className={`rounded-lg border p-3 ${
+      isDone
+        ? 'border-[rgba(6,154,88,0.22)] bg-[rgba(6,154,88,0.08)]'
+        : 'border-[rgba(224,47,53,0.24)] bg-[rgba(224,47,53,0.08)]'
+    }`}>
+      <div className="flex items-start gap-3">
+        <AuditIndicatorSymbol indicator={item.indicator} />
+        <div className="min-w-0 flex-1">
+          <div className={`flex items-start gap-2 text-sm font-semibold ${isDone ? 'text-[var(--success)]' : 'text-[var(--danger)]'}`}>
+            <span className="mt-0.5 shrink-0" aria-hidden="true"><Icon /></span>
+            <p>{item.name}</p>
           </div>
+          <p className="mt-1 text-xs font-semibold text-[var(--text-secondary)]">
+            {isDone ? 'Feito no relatório importado' : `Pendente no relatório importado${item.due ? ` - prazo: ${item.due}` : ''}`}
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {teams.map((team) => (
-              <button
-                key={team.ine}
-                type="button"
-                onClick={() => setSelectedTeam(team)}
-                className="rounded-lg border border-gray-200 bg-white p-5 text-left shadow-sm transition hover:border-blue-300 hover:shadow-md"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h3 className="font-semibold text-gray-900">{team.name}</h3>
-                    <p className="mt-1 text-sm text-gray-500">INE {team.ine}</p>
-                  </div>
-                  <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
-                    {team.patients} pacientes
-                  </span>
-                </div>
-              </button>
+const FindingDrawer = ({ finding, onClose, triggerRef }) => {
+  const closeButtonRef = useRef(null)
+
+  useEffect(() => {
+    const opener = triggerRef.current
+    closeButtonRef.current?.focus()
+    document.body.style.overflow = 'hidden'
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') onClose()
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      document.body.style.overflow = ''
+      opener?.focus()
+    }
+  }, [onClose, triggerRef])
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-[rgba(14,27,51,0.36)]" onMouseDown={onClose}>
+      <aside
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="clinical-audit-drawer-title"
+        className="h-full w-full max-w-2xl overflow-y-auto bg-white p-6 shadow-[-20px_0_44px_rgba(25,55,95,0.18)]"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--primary-dark)]">Análise explicável do achado</p>
+            <h2 id="clinical-audit-drawer-title" className="mt-3 text-2xl font-semibold text-[var(--text-primary)]">{finding.patientInitials}</h2>
+            <p className="mt-2 text-sm text-[var(--text-secondary)]">{finding.team} · INE {finding.ine}</p>
+          </div>
+          <button
+            ref={closeButtonRef}
+            type="button"
+            onClick={onClose}
+            className="grid h-10 w-10 place-items-center rounded-lg border border-[var(--border)] text-xl font-semibold text-[var(--text-secondary)] hover:bg-[var(--surface-interactive)]"
+            aria-label="Fechar análise"
+          >
+            ×
+          </button>
+        </div>
+
+        <section className="mt-6 rounded-xl border border-[rgba(22,103,232,0.2)] bg-[rgba(22,103,232,0.07)] p-4">
+          <p className="text-sm leading-6 text-[var(--text-secondary)]">
+            Este resultado considera somente o relatório importado do e-SUS Helper. Ele não confirma diretamente o prontuário e não substitui avaliação clínica ou decisão da equipe.
+          </p>
+        </section>
+
+        <dl className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <DetailField label="CPF" value={finding.cpf} />
+          <DetailField label="CNS" value={finding.cns} />
+          <DetailField label="Histórico de atraso" value={getDelayHistoryStatus(finding).text} />
+          <DetailField label="Resultado" value={finding.classification} />
+        </dl>
+
+        <section className="mt-5 rounded-xl border border-[var(--border)]">
+          <div className="border-b border-[var(--border-subtle)] bg-[#f7faff] p-4">
+            <h3 className="text-base font-semibold text-[var(--text-primary)]">Diagnóstico</h3>
+          </div>
+          <dl>
+            <div className="p-4">
+              <dt className="text-xs font-medium uppercase text-[var(--text-muted)]">Conclusão</dt>
+              <dd className="mt-2 text-sm leading-6 text-[var(--text-primary)]">{finding.explainableConclusion}</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section className="mt-5 rounded-xl border border-[var(--border)]">
+          <div className="border-b border-[var(--border-subtle)] bg-[#f7faff] p-4">
+            <h3 className="text-base font-semibold text-[var(--text-primary)]">Evidência do e-SUS Helper</h3>
+          </div>
+          <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2">
+            {finding.completedItems.map((item) => (
+              <EvidenceStatusItem key={item.id} item={item} status="done" />
+            ))}
+            {finding.pendingItems.map((item) => (
+              <EvidenceStatusItem key={item.id} item={item} status="pending" />
             ))}
           </div>
         </section>
+
+        <dl className="mt-5 rounded-xl border border-[var(--border)]">
+          {[
+            ['Data da auditoria', finding.auditedAt],
+            ['Competência', finding.competence],
+            ['Fonte', finding.source],
+          ].map(([label, value], index) => (
+            <div key={label} className={`flex justify-between gap-4 px-4 py-3 ${index ? 'border-t border-[var(--border-subtle)]' : ''}`}>
+              <dt className="text-xs text-[var(--text-muted)]">{label}</dt>
+              <dd className="text-right text-sm font-semibold text-[var(--text-primary)]">{value}</dd>
+            </div>
+          ))}
+        </dl>
+
+        <div className="mt-6">
+          <button type="button" onClick={onClose} className="btn-primary px-4 py-2 text-sm font-semibold">
+            Concluir revisão
+          </button>
+        </div>
+      </aside>
+    </div>
+  )
+}
+
+export const AuditoriaRegistrosClinicosView = () => {
+  const [indicatorFilter, setIndicatorFilter] = useState('all')
+  const [teamFilter, setTeamFilter] = useState('all')
+  const [delayHistoryFilter, setDelayHistoryFilter] = useState('all')
+  const [query, setQuery] = useState('')
+  const [selectedFinding, setSelectedFinding] = useState(null)
+  const [updateFeedback, setUpdateFeedback] = useState('')
+  const drawerTriggerRef = useRef(null)
+
+  const teams = useMemo(() => getTeams(), [])
+
+  const summary = useMemo(() => ({
+    audited: CLINICAL_AUDIT_FINDINGS.length,
+    critical: CLINICAL_AUDIT_FINDINGS.filter((finding) => ['clinico', 'absenteismo_cronico'].includes(getDelayHistoryStatus(finding).status)).length,
+    incomplete: CLINICAL_AUDIT_FINDINGS.filter((finding) => finding.classification === 'Acompanhamento incompleto').length,
+  }), [])
+
+  const filteredFindings = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase()
+
+    return CLINICAL_AUDIT_FINDINGS.filter((finding) => {
+      const matchesIndicator = indicatorFilter === 'all' || finding.indicators.includes(indicatorFilter)
+      const matchesTeam = teamFilter === 'all' || finding.ine === teamFilter
+      const matchesDelayHistory = delayHistoryFilter === 'all' || getDelayHistoryStatus(finding).status === delayHistoryFilter
+      const matchesSearch = !normalizedQuery || getSearchValue(finding).toLowerCase().includes(normalizedQuery)
+
+      return matchesIndicator && matchesTeam && matchesDelayHistory && matchesSearch
+    })
+  }, [delayHistoryFilter, indicatorFilter, query, teamFilter])
+
+  const handleClearFilters = () => {
+    setIndicatorFilter('all')
+    setTeamFilter('all')
+    setDelayHistoryFilter('all')
+    setQuery('')
+  }
+
+  const handleOpenFinding = (finding, event) => {
+    drawerTriggerRef.current = event.currentTarget
+    setSelectedFinding(finding)
+  }
+
+  return (
+    <div className="max-w-full space-y-6 overflow-x-hidden">
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--primary-dark)]">Qualidade assistencial / Análise do e-SUS Helper</p>
+          <h1 className="mt-3 text-2xl font-semibold text-[var(--text-primary)]">Auditoria dos Registros Clínicos</h1>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--text-secondary)]">
+            Analisa as pendências individuais de C4 e C5 importadas do e-SUS Helper e explica a classificação aplicada.
+          </p>
+        </div>
+        <div className="flex flex-col items-start gap-2 sm:items-end">
+          <button
+            type="button"
+            onClick={() => setUpdateFeedback('Auditoria demonstrativa atualizada com os dados importados disponíveis.')}
+            className="btn-primary px-4 py-2 text-sm font-semibold"
+          >
+            Atualizar auditoria
+          </button>
+          {updateFeedback && <p className="text-xs font-medium text-[var(--success)]" role="status">{updateFeedback}</p>}
+        </div>
+      </header>
+
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <SummaryCard label="Registros auditados" value={summary.audited} description="achados analisados na importação" tone="info" />
+        <SummaryCard label="Riscos clínicos" value={summary.critical} description="histórico escalonado para revisão assistencial" tone="danger" />
+        <SummaryCard label="Acompanhamentos incompletos" value={summary.incomplete} description="pendências ainda abertas no ciclo" tone="alert" />
+      </section>
+
+      <Filters
+        indicatorFilter={indicatorFilter}
+        teamFilter={teamFilter}
+        delayHistoryFilter={delayHistoryFilter}
+        query={query}
+        teams={teams}
+        resultCount={filteredFindings.length}
+        onIndicatorChange={setIndicatorFilter}
+        onTeamChange={setTeamFilter}
+        onDelayHistoryChange={setDelayHistoryFilter}
+        onQueryChange={setQuery}
+      />
+
+      {filteredFindings.length ? (
+        <FindingsTable findings={filteredFindings} onOpenFinding={handleOpenFinding} />
+      ) : (
+        <EmptyState onClear={handleClearFilters} />
       )}
 
-      {selectedIndicator && selectedTeam && (
-        <section className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-medium text-gray-500">
-                {indicatorCards.find((indicator) => indicator.id === selectedIndicator)?.label} · INE {selectedTeam.ine}
-              </p>
-              <h2 className="text-xl font-bold text-gray-900">{selectedTeam.name}</h2>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setSelectedTeam(null)}
-                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50"
-              >
-                Voltar para equipes
-              </button>
-              <button
-                type="button"
-                onClick={handleBackToIndicators}
-                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50"
-              >
-                Voltar para indicadores
-              </button>
-            </div>
-          </div>
-
-          <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  {['Nome', 'CPF', 'Pendências', 'Inteligência'].map((header) => (
-                    <th key={header} className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">{header}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 bg-white">
-                {teamPatients.map((patient) => (
-                  <tr key={patient.id}>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900">{patient.name}</td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">{patient.cpf}</td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-wrap gap-2">
-                        {patient.pendencias.map((item) => (
-                          <span key={item} className="rounded-full bg-orange-50 px-3 py-1 text-xs font-semibold text-orange-700">
-                            {item}
-                          </span>
-                        ))}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{patient.inteligencia}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
+      {selectedFinding && (
+        <FindingDrawer
+          finding={selectedFinding}
+          onClose={() => setSelectedFinding(null)}
+          triggerRef={drawerTriggerRef}
+        />
       )}
     </div>
   )

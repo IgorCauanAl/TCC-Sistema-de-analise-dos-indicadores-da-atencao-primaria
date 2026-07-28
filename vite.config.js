@@ -6,3 +6,6 @@ export default defineConfig({
   base: '/TCC-Sistema-de-analise-dos-indicadores-da-atencao-primaria/',
   plugins: [react(), tailwindcss()],
 })
+
+
+
