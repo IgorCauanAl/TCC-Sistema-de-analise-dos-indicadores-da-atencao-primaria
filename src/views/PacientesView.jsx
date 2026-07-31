@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Icons } from '../components/ui/Icons'
-import { getDelayHistoryStatus } from '../components/ui/TemporalStatusBadge'
+import { getDelayHistoryStatus } from '../utils/temporalStatus'
 import { PATIENT_CLASSIFICATIONS, PATIENT_MODULE_DATA } from '../data/pacientesModuleData'
 
 const stepLabels = [
@@ -220,6 +220,42 @@ const riskBadgeStyles = {
   absenteismo_cronico: 'bg-gray-900 text-white',
 }
 
+const riskPanelStyles = {
+  moderado: 'border-[rgba(6,154,88,0.24)] bg-[rgba(6,154,88,0.08)] text-[var(--success)]',
+  alto: 'border-[rgba(240,132,0,0.28)] bg-[rgba(240,132,0,0.1)] text-[var(--warning)]',
+  clinico: 'border-[rgba(224,47,53,0.3)] bg-[rgba(224,47,53,0.1)] text-[var(--danger)]',
+  absenteismo_recente: 'border-[rgba(180,83,9,0.34)] bg-[rgba(180,83,9,0.14)] text-[#9a3412]',
+  absenteismo_cronico: 'border-[#0e1b33] bg-[#0e1b33] text-white',
+}
+
+const riskClassificationSummaries = [
+  {
+    id: 'moderado',
+    label: 'Risco Moderado',
+    description: 'Atraso só no quadrimestre atual; paciente estava em dia no ciclo anterior.',
+  },
+  {
+    id: 'alto',
+    label: 'Risco Alto',
+    description: 'Atraso há 1 quadrimestre com pendência procedimental de baixo risco imediato, como peso/altura.',
+  },
+  {
+    id: 'clinico',
+    label: 'Risco Clínico',
+    description: 'Atraso há 1 quadrimestre com pendência crítica: C4 consulta/pé diabético ou C5 consulta/pressão.',
+  },
+  {
+    id: 'absenteismo_recente',
+    label: 'Absenteísmo Recente',
+    description: 'Zerado há 1 quadrimestre; todas as variáveis aparecem como NÃO*.',
+  },
+  {
+    id: 'absenteismo_cronico',
+    label: 'Absenteísmo Crônico',
+    description: 'Inativo há mais de 8 meses, com perda total de vínculo ou variável sem registro prolongado.',
+  },
+]
+
 const currentQuarterStatusClass = 'border-[rgba(6,154,88,0.24)] bg-[rgba(6,154,88,0.08)] text-[var(--success)]'
 
 const getCurrentQuarterStatusLabel = (status = 'Em andamento') => status.replace(' (Verde)', '')
@@ -247,6 +283,23 @@ const CurrentQuarterStatus = ({ patient }) => (
   </div>
 )
 
+const RiskClassificationGuide = () => (
+  <section className="app-card p-5" aria-labelledby="patient-risk-guide-title">
+    <div>
+      <p className="text-sm font-medium text-[var(--primary-dark)]">Classificação</p>
+      <h2 id="patient-risk-guide-title" className="mt-1 text-lg font-semibold text-[var(--text-primary)]">Critérios resumidos de risco temporal</h2>
+    </div>
+    <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+      {riskClassificationSummaries.map((item) => (
+        <article key={item.id} className={`rounded-xl border p-4 ${riskPanelStyles[item.id]}`}>
+          <h3 className="text-sm font-semibold">{item.label}</h3>
+          <p className="mt-2 text-xs leading-5 opacity-90">{item.description}</p>
+        </article>
+      ))}
+    </div>
+  </section>
+)
+
 const getDelayHistoryDetails = (patient, selectedIndicator) => {
   const delayHistory = getPatientDelayHistory(patient, selectedIndicator)
   const details = patient.detalhesHistorico || {}
@@ -271,7 +324,7 @@ const VariableStatusBadge = ({ variable }) => (
   </span>
 )
 
-const IndicatorVariablesPanel = ({ variables, emptyText }) => {
+const IndicatorVariablesPanel = ({ variables, emptyText, riskStatus }) => {
   if (!variables.length) {
     return (
       <div className="rounded-xl border border-[rgba(6,154,88,0.22)] bg-[rgba(6,154,88,0.08)] p-4 text-sm font-semibold text-[var(--success)]">
@@ -283,15 +336,10 @@ const IndicatorVariablesPanel = ({ variables, emptyText }) => {
   return (
     <div className="space-y-2">
       {variables.map((variable) => (
-        <div key={`${variable.codigo}-${variable.descricao}`} className="rounded-xl border border-[var(--border-subtle)] bg-[#f7faff] p-3">
+        <div key={`${variable.codigo}-${variable.descricao}`} className={`rounded-xl border p-3 ${riskPanelStyles[riskStatus] || riskPanelStyles.moderado}`}>
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold text-[var(--text-primary)]">{variable.codigo}: {variable.descricao}</p>
-              {variable.quadrimestre && (
-                <p className="mt-1 text-xs text-[var(--text-muted)]">
-                  Origem: {variable.quadrimestre} · atraso aproximado: {variable.diasAtraso} dias
-                </p>
-              )}
+              <p className="text-sm font-semibold">{variable.codigo}: {variable.descricao}</p>
             </div>
             <VariableStatusBadge variable={variable} />
           </div>
@@ -469,6 +517,7 @@ const PatientDetailDrawer = ({ patient, classification, selectedIndicator, onClo
             <IndicatorVariablesPanel
               variables={activeVariables}
               emptyText="Nenhuma pendência atual informada para este indicador."
+              riskStatus={delayHistory.status}
             />
           </div>
         </section>
@@ -566,6 +615,8 @@ export const PacientesView = ({ initialClassification = null, onOpenAuditHistory
 
   return (
     <PageShell currentStep={currentStep}>
+      <RiskClassificationGuide />
+
       {!selectedTeam && !selectedClassification && (
         <section className="space-y-4">
           <div className="app-card p-5">

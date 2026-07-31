@@ -254,10 +254,6 @@ export const ModuloHistorico = ({ initialQuarter = null, initialPatientName = nu
   const [selectedRecord, setSelectedRecord] = useState(null)
   const detailTriggerRef = useRef(null)
 
-  useEffect(() => {
-    setSelectedQuarter(initialQuarter)
-  }, [initialQuarter])
-
   const quarter = AUDIT_QUARTERS.find((item) => item.id === selectedQuarter)
   const records = useMemo(() => (
     selectedQuarter

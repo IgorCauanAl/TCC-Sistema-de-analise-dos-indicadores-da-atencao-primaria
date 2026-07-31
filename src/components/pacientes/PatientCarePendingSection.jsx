@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Icons } from '../ui/Icons'
-import { getDelayHistoryStatus } from '../ui/TemporalStatusBadge'
+import { getDelayHistoryStatus } from '../../utils/temporalStatus'
 
 const indicatorLabels = {
   C4: {
@@ -10,29 +10,6 @@ const indicatorLabels = {
   C5: {
     title: 'Cuidado da pessoa com hipertensão',
     description: 'C5 — Cuidado da pessoa com hipertensão',
-  },
-}
-
-const deadlineStatusConfig = {
-  OVERDUE: {
-    itemClass: 'border-[rgba(224,47,53,0.24)] bg-[rgba(224,47,53,0.08)] text-[var(--danger)]',
-    Icon: Icons.Alert,
-  },
-  CRITICAL: {
-    itemClass: 'border-[rgba(224,47,53,0.24)] bg-[rgba(224,47,53,0.08)] text-[var(--danger)]',
-    Icon: Icons.Alert,
-  },
-  ATTENTION: {
-    itemClass: 'border-[rgba(229,109,34,0.24)] bg-[rgba(229,109,34,0.09)] text-[var(--alert)]',
-    Icon: Icons.Calendar,
-  },
-  PENDING: {
-    itemClass: 'border-[rgba(240,132,0,0.24)] bg-[rgba(240,132,0,0.09)] text-[var(--warning)]',
-    Icon: Icons.Activity,
-  },
-  UNAVAILABLE: {
-    itemClass: 'border-[var(--border)] bg-[#f4f7fb] text-[var(--text-secondary)]',
-    Icon: Icons.Alert,
   },
 }
 

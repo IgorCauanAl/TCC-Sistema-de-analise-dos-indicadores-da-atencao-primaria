@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { PatientCarePendingSection } from '../components/pacientes/PatientCarePendingSection'
 import { Icons } from '../components/ui/Icons'
-import { getDelayHistoryStatus } from '../components/ui/TemporalStatusBadge'
+import { getDelayHistoryStatus } from '../utils/temporalStatus'
 import { OPPORTUNITY_RECORDS } from '../data/opportunityWindowData'
 
 const delayHistoryRank = {

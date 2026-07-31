@@ -6,8 +6,8 @@ export const RANKING_METRICS = {
     barClass: 'bg-[var(--warning)]',
   },
   zerados: {
-    label: 'Pacientes zerados',
-    description: 'Sem acompanhamento válido',
+    label: 'Absenteísmo',
+    description: 'Absenteísmo',
     tone: 'danger',
     barClass: 'bg-[var(--danger)]',
   },

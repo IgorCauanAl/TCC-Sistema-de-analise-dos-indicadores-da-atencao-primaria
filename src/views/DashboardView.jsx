@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo } from 'react'
 import { Icons } from '../components/ui/Icons'
 import { ProgressBar } from '../components/ui/ProgressBar'
 import { getDashboardQuadrimesters, getDashboardSituation } from '../services/dashboardService'
@@ -12,6 +12,49 @@ const toneClasses = {
   danger: 'border-[rgba(224,47,53,0.22)] bg-[rgba(224,47,53,0.08)] text-[var(--danger)]',
   alert: 'border-[rgba(229,109,34,0.24)] bg-[rgba(229,109,34,0.09)] text-[var(--alert)]',
 }
+
+const DASHBOARD_STATE_DEFAULTS = {
+  quadrimester: null,
+  selectedIndicatorId: 'c2',
+  activeMetric: 'acompanhamentoParcial',
+  teamQuery: '',
+  quickFilter: 'all',
+  refreshStamp: null,
+  refreshStatus: 'idle',
+  refreshMessage: '',
+  isRankingExpanded: false,
+  detailTeamId: null,
+}
+
+const QUICK_FILTERS = [
+  { id: 'all', label: 'Todas', match: () => true },
+  { id: 'critical', label: 'Críticas', match: (team) => team.situacao.toLowerCase() === 'cuidado programado fragilizado' },
+  { id: 'almostRegularized', label: 'Quase regularizadas', match: (team) => team.quaseRegularizados > 0 },
+  { id: 'withoutFollowUp', label: 'Absenteísmo', match: (team) => team.zerados > 0 },
+]
+
+const EXPLANATIONS = [
+  {
+    term: 'Acompanhamento parcial',
+    description: 'Paciente com parte do cuidado registrado, mas ainda com pendências para fechar o acompanhamento do indicador.',
+  },
+  {
+    term: 'Paciente zerado',
+    description: 'Paciente sem registro válido para o indicador acompanhado no período analisado.',
+  },
+  {
+    term: 'Quase regularizado',
+    description: 'Paciente com poucas pendências restantes e maior chance de regularização no quadrimestre.',
+  },
+  {
+    term: 'Absenteísmo',
+    description: 'Pacientes sem acompanhamento efetivo, exigindo busca ativa ou reagendamento pela equipe.',
+  },
+]
+
+const getRefreshTimeLabel = () => new Intl.DateTimeFormat('pt-BR', { timeStyle: 'short' }).format(new Date())
+
+const isNumericValue = (value) => typeof value === 'number' && Number.isFinite(value)
 
 const SummaryCard = ({ icon, label, value, helper, action, footerAction, tone = 'info', onClick }) => {
   const content = (
@@ -105,41 +148,270 @@ const RankingList = ({ teams, metric, activeMetric, onSelectMetric, isExpanded, 
   )
 }
 
-export const DashboardView = ({ onOpenC1, onOpenPatients }) => {
+const QuickFilters = ({ activeFilter, onChangeFilter }) => (
+  <div className="flex flex-wrap gap-2" aria-label="Filtros rápidos">
+    {QUICK_FILTERS.map((filter) => (
+      <button
+        key={filter.id}
+        type="button"
+        onClick={() => onChangeFilter(filter.id)}
+        className={`rounded-full border px-3 py-2 text-sm font-semibold transition ${
+          activeFilter === filter.id
+            ? 'border-[rgba(22,103,232,0.26)] bg-[rgba(22,103,232,0.1)] text-[var(--primary-dark)]'
+            : 'border-[var(--border)] bg-white text-[var(--text-secondary)] hover:bg-[var(--surface-interactive)]'
+        }`}
+      >
+        {filter.label}
+      </button>
+    ))}
+  </div>
+)
+
+const AppliedFiltersSummary = ({ quadrimesterLabel, indicatorLabel, detailTeamName }) => {
+  const items = [
+    ['Quadrimestre', quadrimesterLabel],
+    ['Indicador', indicatorLabel],
+  ]
+
+  if (detailTeamName) items.push(['Equipe', detailTeamName])
+
+  return (
+    <section className="app-card px-4 py-4 text-sm lg:px-5" aria-label="Resumo dos filtros aplicados">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="mr-1 font-semibold text-[var(--text-primary)]">Filtros aplicados:</span>
+        {items.map(([label, value]) => (
+          <span key={label} className="soft-pill inline-flex items-center gap-1 px-3 py-1 text-xs font-semibold">
+            <span className="text-[var(--text-secondary)]">{label}:</span>
+            <span>{value}</span>
+          </span>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+const ExplanationPanel = () => (
+  <section className="app-card p-5" aria-labelledby="dashboard-explanations-title">
+    <h2 id="dashboard-explanations-title" className="text-base font-semibold text-[var(--text-primary)]">Explicações dos termos</h2>
+    <dl className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+      {EXPLANATIONS.map((item) => (
+        <div key={item.term} className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-elevated)] p-4">
+          <dt className="font-semibold text-[var(--primary-dark)]">{item.term}</dt>
+          <dd className="mt-2 text-sm leading-5 text-[var(--text-secondary)]">{item.description}</dd>
+        </div>
+      ))}
+    </dl>
+  </section>
+)
+
+const DataStateBadge = ({ tone, children }) => (
+  <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${toneClasses[tone]}`}>
+    {children}
+  </span>
+)
+
+const PatientCountCell = ({ value, hasLoadingFailure }) => {
+  if (hasLoadingFailure) {
+    return (
+      <div className="space-y-2">
+        <DataStateBadge tone="danger">Falha de carregamento</DataStateBadge>
+        <p className="text-xs text-[var(--text-muted)]">Não foi possível confirmar a quantidade.</p>
+      </div>
+    )
+  }
+
+  if (!isNumericValue(value)) {
+    return <DataStateBadge tone="alert">Dados indisponíveis</DataStateBadge>
+  }
+
+  if (value === 0) {
+    return <DataStateBadge tone="info">Zero pacientes</DataStateBadge>
+  }
+
+  return (
+    <span>{formatNumber(value)} pacientes</span>
+  )
+}
+
+const DetailDrawer = ({ team, indicator, quadrimesterLabel, lastUpdated, onClose, onOpenPatients }) => {
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') onClose()
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
+
+  if (!team) return null
+
+  const rows = [
+    ['Equipe', team.name],
+    ['Indicador', indicator.label],
+    ['Quadrimestre', quadrimesterLabel],
+    ['Resultado', `${team[indicator.id]}%`],
+    ['Quantidade de pacientes', `${formatNumber(team.quantidadePacientes)} pacientes`],
+    ['Pendências', team.principaisPendencias],
+    ['Última atualização', lastUpdated],
+  ]
+
+  return (
+    <div className="fixed inset-0 z-30 flex justify-end bg-[rgba(14,27,51,0.28)]" role="dialog" aria-modal="true" aria-labelledby="dashboard-detail-title">
+      <aside className="h-full w-full max-w-xl overflow-y-auto border-l border-[var(--border)] bg-white p-6 shadow-2xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold text-[var(--primary-dark)]">Detalhamento da equipe</p>
+            <h2 id="dashboard-detail-title" className="mt-2 text-xl font-semibold text-[var(--text-primary)]">{team.name}</h2>
+          </div>
+          <button type="button" onClick={onClose} className="btn-secondary px-4 py-2 text-sm font-semibold">
+            Fechar
+          </button>
+        </div>
+
+        <dl className="mt-6 divide-y divide-[var(--border-subtle)] rounded-xl border border-[var(--border)]">
+          {rows.map(([label, value]) => (
+            <div key={label} className="grid gap-1 px-4 py-3 sm:grid-cols-[11rem_1fr] sm:gap-4">
+              <dt className="text-sm font-semibold text-[var(--text-secondary)]">{label}</dt>
+              <dd className="text-sm text-[var(--text-primary)]">{value}</dd>
+            </div>
+          ))}
+        </dl>
+
+        <div className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] p-4">
+          <h3 className="font-semibold text-[var(--text-primary)]">Ações relacionadas</h3>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <button type="button" onClick={() => onOpenPatients('parcial')} className="btn-secondary px-4 py-2 text-sm font-semibold">
+              Ver acompanhamento parcial
+            </button>
+            <button type="button" onClick={() => onOpenPatients('absenteismo')} className="btn-secondary px-4 py-2 text-sm font-semibold">
+              Ver Absenteísmo
+            </button>
+            <button type="button" onClick={() => onOpenPatients('quase_regularizado')} className="btn-secondary px-4 py-2 text-sm font-semibold">
+              Ver quase regularizados
+            </button>
+          </div>
+        </div>
+      </aside>
+    </div>
+  )
+}
+
+export const DashboardView = ({ onOpenC1, onOpenPatients, dashboardState, onDashboardStateChange }) => {
   const quadrimesters = useMemo(() => getDashboardQuadrimesters(), [])
   const dashboard = useMemo(() => getDashboardSituation(), [])
   const selectableIndicators = useMemo(() => dashboard.indicators.filter((indicator) => indicator.id !== 'c1'), [dashboard.indicators])
   const totals = useMemo(() => getDashboardTotals(dashboard.teams, dashboard.situationConfig), [dashboard.situationConfig, dashboard.teams])
-  const [quadrimester, setQuadrimester] = useState(quadrimesters[0].id)
-  const [selectedIndicatorId, setSelectedIndicatorId] = useState('c2')
-  const [activeMetric, setActiveMetric] = useState('acompanhamentoParcial')
-  const [teamQuery, setTeamQuery] = useState('')
-  const [refreshStamp, setRefreshStamp] = useState(null)
-  const [isRankingExpanded, setIsRankingExpanded] = useState(false)
+  const state = {
+    ...DASHBOARD_STATE_DEFAULTS,
+    quadrimester: quadrimesters[0].id,
+    ...dashboardState,
+  }
+  const {
+    quadrimester,
+    selectedIndicatorId,
+    activeMetric,
+    teamQuery,
+    quickFilter,
+    refreshStamp,
+    refreshStatus,
+    refreshMessage,
+    isRankingExpanded,
+    detailTeamId,
+  } = state
+
+  const updateDashboardState = (nextState) => {
+    onDashboardStateChange((currentState = {}) => {
+      const baseState = {
+        ...DASHBOARD_STATE_DEFAULTS,
+        quadrimester: quadrimesters[0].id,
+        ...currentState,
+      }
+
+      if (typeof nextState === 'function') return nextState(baseState)
+
+      return {
+        ...baseState,
+        ...nextState,
+      }
+    })
+  }
 
   const selectedIndicator = useMemo(
     () => selectableIndicators.find((indicator) => indicator.id === selectedIndicatorId) || selectableIndicators[0],
     [selectableIndicators, selectedIndicatorId],
   )
-  const filteredTeams = useMemo(() => getFilteredTeams(dashboard.teams, teamQuery), [dashboard.teams, teamQuery])
+  const selectedQuadrimester = useMemo(
+    () => quadrimesters.find((item) => item.id === quadrimester) || quadrimesters[0],
+    [quadrimester, quadrimesters],
+  )
+  const selectedQuickFilter = useMemo(
+    () => QUICK_FILTERS.find((filter) => filter.id === quickFilter) || QUICK_FILTERS[0],
+    [quickFilter],
+  )
+  const filteredTeams = useMemo(() => {
+    const searchFilteredTeams = getFilteredTeams(dashboard.teams, teamQuery)
+
+    return searchFilteredTeams.filter((team) => selectedQuickFilter.match(team))
+  }, [dashboard.teams, selectedQuickFilter, teamQuery])
   const rankingTeams = useMemo(() => getTopTeams(dashboard.teams, activeMetric, isRankingExpanded ? dashboard.teams.length : 6), [activeMetric, dashboard.teams, isRankingExpanded])
+  const detailTeam = useMemo(
+    () => dashboard.teams.find((team) => team.id === detailTeamId) || null,
+    [dashboard.teams, detailTeamId],
+  )
   const lastUpdated = refreshStamp || formatDateTime(dashboard.context.lastUpdated)
 
   const handleRefresh = () => {
-    setRefreshStamp(`hoje, às ${new Intl.DateTimeFormat('pt-BR', { timeStyle: 'short' }).format(new Date())}`)
+    if (refreshStatus === 'loading') return
+
+    updateDashboardState({
+      refreshStatus: 'loading',
+      refreshMessage: '',
+    })
+
+    window.setTimeout(() => {
+      try {
+        const updateTime = getRefreshTimeLabel()
+
+        updateDashboardState({
+          refreshStatus: 'success',
+          refreshStamp: `hoje, às ${updateTime}`,
+          refreshMessage: `Painel atualizado às ${updateTime}.`,
+        })
+      } catch {
+        updateDashboardState({
+          refreshStatus: 'error',
+          refreshMessage: 'Não foi possível atualizar o painel. Verifique a conexão e tente novamente.',
+        })
+      }
+    }, 600)
   }
 
   const handleSelectIndicator = (indicatorId) => {
-    setSelectedIndicatorId(indicatorId)
+    updateDashboardState({ selectedIndicatorId: indicatorId })
   }
 
   const handleSelectMetric = (metric) => {
-    setActiveMetric(metric)
-    setIsRankingExpanded(false)
+    updateDashboardState({
+      activeMetric: metric,
+      isRankingExpanded: false,
+    })
   }
 
   const handleDetailTeam = (team) => {
-    setTeamQuery(team.name)
+    updateDashboardState({ detailTeamId: team.id })
+  }
+
+  const handleClearFilters = () => {
+    updateDashboardState({
+      quadrimester: quadrimesters[0].id,
+      selectedIndicatorId: DASHBOARD_STATE_DEFAULTS.selectedIndicatorId,
+      activeMetric: DASHBOARD_STATE_DEFAULTS.activeMetric,
+      teamQuery: '',
+      quickFilter: DASHBOARD_STATE_DEFAULTS.quickFilter,
+      isRankingExpanded: false,
+      detailTeamId: null,
+    })
   }
 
   return (
@@ -154,7 +426,7 @@ export const DashboardView = ({ onOpenC1, onOpenPatients }) => {
           <select
             id="dashboard-quadrimester"
             value={quadrimester}
-            onChange={(event) => setQuadrimester(event.target.value)}
+            onChange={(event) => updateDashboardState({ quadrimester: event.target.value })}
             className="form-control px-3 py-2 text-sm outline-none"
           >
             {quadrimesters.map((item) => (
@@ -172,12 +444,45 @@ export const DashboardView = ({ onOpenC1, onOpenPatients }) => {
               <option key={indicator.id} value={indicator.id}>{indicator.label}</option>
             ))}
           </select>
-          <button type="button" onClick={handleRefresh} className="btn-primary inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold">
+          <button type="button" onClick={handleClearFilters} className="btn-secondary inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold">
+            Limpar filtros
+          </button>
+          <button
+            type="button"
+            onClick={handleRefresh}
+            disabled={refreshStatus === 'loading'}
+            className="btn-primary inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-70"
+          >
             <Icons.Activity />
-            Atualizar painel
+            {refreshStatus === 'loading' ? 'Atualizando...' : 'Atualizar painel'}
           </button>
         </div>
       </header>
+
+      {refreshMessage && (
+        <section
+          className={`app-card flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm ${
+            refreshStatus === 'error' ? 'border-[rgba(224,47,53,0.22)] bg-[rgba(224,47,53,0.08)]' : 'border-[rgba(6,154,88,0.22)] bg-[rgba(6,154,88,0.08)]'
+          }`}
+          role={refreshStatus === 'error' ? 'alert' : 'status'}
+          aria-live="polite"
+        >
+          <span className={refreshStatus === 'error' ? 'font-semibold text-[var(--danger)]' : 'font-semibold text-[var(--success)]'}>
+            {refreshMessage}
+          </span>
+          {refreshStatus === 'error' && (
+            <button type="button" onClick={handleRefresh} className="btn-secondary px-4 py-2 text-sm font-semibold">
+              Tentar novamente
+            </button>
+          )}
+        </section>
+      )}
+
+      <AppliedFiltersSummary
+        quadrimesterLabel={selectedQuadrimester.label}
+        indicatorLabel={selectedIndicator.label}
+        detailTeamName={detailTeam?.name || ''}
+      />
 
       <section className="app-card flex flex-col gap-4 px-4 py-4 text-sm lg:flex-row lg:items-center lg:justify-between lg:px-5" aria-label="Contexto dos dados">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -245,6 +550,8 @@ export const DashboardView = ({ onOpenC1, onOpenPatients }) => {
         />
       </section>
 
+      <ExplanationPanel />
+
       <div>
         <RankingList
           teams={rankingTeams}
@@ -252,7 +559,7 @@ export const DashboardView = ({ onOpenC1, onOpenPatients }) => {
           activeMetric={activeMetric}
           onSelectMetric={handleSelectMetric}
           isExpanded={isRankingExpanded}
-          onToggleExpanded={() => setIsRankingExpanded((value) => !value)}
+          onToggleExpanded={() => updateDashboardState((currentState) => ({ ...currentState, isRankingExpanded: !currentState.isRankingExpanded }))}
           onDetailTeam={handleDetailTeam}
         />
       </div>
@@ -263,6 +570,7 @@ export const DashboardView = ({ onOpenC1, onOpenPatients }) => {
             <h2 className="text-lg font-semibold text-[var(--text-primary)]">Situação por equipe</h2>
             <p className="mt-1 text-sm text-[var(--text-secondary)]">{formatNumber(filteredTeams.length)} de {formatNumber(dashboard.teams.length)} equipes exibidas</p>
           </div>
+          <QuickFilters activeFilter={quickFilter} onChangeFilter={(filterId) => updateDashboardState({ quickFilter: filterId })} />
           <label className="min-w-0 flex-1 md:max-w-xs">
             <span className="sr-only">Pesquisar equipe</span>
             <div className="form-shell flex items-center px-3 py-2">
@@ -270,7 +578,7 @@ export const DashboardView = ({ onOpenC1, onOpenPatients }) => {
               <input
                 type="search"
                 value={teamQuery}
-                onChange={(event) => setTeamQuery(event.target.value)}
+                onChange={(event) => updateDashboardState({ teamQuery: event.target.value })}
                 placeholder="Pesquisar equipe"
                 className="app-input w-full border-0 bg-transparent text-sm text-[var(--text-primary)] outline-none"
               />
@@ -291,18 +599,24 @@ export const DashboardView = ({ onOpenC1, onOpenPatients }) => {
                 <tr key={team.id}>
                   <td className="whitespace-nowrap">{team.name}</td>
                   <td className="min-w-36">
-                    <div className="flex items-center gap-3">
-                      <span className="w-10 font-semibold text-[var(--text-primary)]">{team[selectedIndicator.id]}%</span>
-                      <div className="w-24">
-                        <ProgressBar percent={team[selectedIndicator.id]} />
+                    {isNumericValue(team[selectedIndicator.id]) ? (
+                      <div className="flex items-center gap-3">
+                        <span className="w-10 font-semibold text-[var(--text-primary)]">{team[selectedIndicator.id]}%</span>
+                        <div className="w-24">
+                          <ProgressBar percent={team[selectedIndicator.id]} />
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <DataStateBadge tone="alert">Dados indisponíveis</DataStateBadge>
+                    )}
                   </td>
                   <td>{formatNumber(team.quaseRegularizados)} pacientes</td>
                   <td className="min-w-60">
                     <div className="font-medium text-[var(--text-primary)]">{team.principaisPendencias}</div>
                   </td>
-                  <td>{formatNumber(team.quantidadePacientes)} pacientes</td>
+                  <td>
+                    <PatientCountCell value={team.quantidadePacientes} hasLoadingFailure={refreshStatus === 'error'} />
+                  </td>
                   <td>
                     <button type="button" onClick={() => handleDetailTeam(team)} className="text-sm font-semibold text-[var(--primary-dark)] hover:underline">
                       Detalhar
@@ -313,7 +627,14 @@ export const DashboardView = ({ onOpenC1, onOpenPatients }) => {
               {!filteredTeams.length && (
                 <tr>
                   <td colSpan="6" className="px-6 py-10 text-center text-sm text-[var(--text-muted)]">
-                    Nenhuma equipe encontrada para a pesquisa informada.
+                    <div className="flex flex-col items-center gap-3">
+                      <span>Nenhuma equipe encontrada para a pesquisa informada.</span>
+                      {teamQuery.trim() && (
+                        <button type="button" onClick={() => updateDashboardState({ teamQuery: '' })} className="btn-secondary px-4 py-2 text-sm font-semibold">
+                          Limpar pesquisa
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               )}
@@ -321,6 +642,17 @@ export const DashboardView = ({ onOpenC1, onOpenPatients }) => {
           </table>
         </div>
       </section>
+
+      {detailTeam && (
+        <DetailDrawer
+          team={detailTeam}
+          indicator={selectedIndicator}
+          quadrimesterLabel={selectedQuadrimester.label}
+          lastUpdated={lastUpdated}
+          onClose={() => updateDashboardState({ detailTeamId: null })}
+          onOpenPatients={onOpenPatients}
+        />
+      )}
     </div>
   )
 }

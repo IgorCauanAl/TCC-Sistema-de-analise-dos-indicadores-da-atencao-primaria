@@ -29,13 +29,15 @@ export const Sidebar = ({ activeModule, menuItems, onChangeModule }) => {
         </div>
       </div>
 
-      <nav className="flex-1 overflow-y-auto py-5">
+      <nav className="flex-1 overflow-y-auto py-5" aria-label="Módulos do sistema">
         <ul className="space-y-2 px-3">
-          {menuItems.map((item) => (
+          {menuItems.map((item, index) => (
             <li key={item.id}>
               <button
                 type="button"
                 onClick={() => onChangeModule(item.id)}
+                aria-current={activeModule === item.id ? 'page' : undefined}
+                aria-label={`${item.label}${index < 8 ? `. Atalho Alt mais ${index + 1}` : ''}`}
                 className={`relative flex min-h-12 w-full items-center rounded-xl px-3.5 py-2.5 text-left transition-colors ${
                   activeModule === item.id
                     ? 'bg-[var(--surface-interactive)] text-[var(--primary)] before:absolute before:left-0 before:top-2 before:h-8 before:w-1 before:rounded-r-full before:bg-[var(--primary)]'
@@ -44,6 +46,11 @@ export const Sidebar = ({ activeModule, menuItems, onChangeModule }) => {
               >
                 <span className={`mr-3 shrink-0 ${activeModule === item.id ? 'text-[var(--primary)]' : 'text-[var(--text-primary)]'}`}>{item.icon}</span>
                 <span className="text-sm font-medium leading-snug">{item.label}</span>
+                {index < 8 && (
+                  <span className="ml-auto rounded-lg border border-[var(--border)] bg-white px-2 py-0.5 text-xs font-semibold text-[var(--text-muted)]" aria-hidden="true">
+                    Alt+{index + 1}
+                  </span>
+                )}
               </button>
             </li>
           ))}

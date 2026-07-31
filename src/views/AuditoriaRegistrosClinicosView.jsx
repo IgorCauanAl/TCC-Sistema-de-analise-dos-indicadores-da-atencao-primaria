@@ -11,7 +11,7 @@ const indicatorOptions = [
 const classificationOptions = [
   { id: 'all', label: 'Todas as conclusões' },
   { id: 'Acompanhamento incompleto', label: 'Acompanhamento incompleto' },
-  { id: 'Sem acompanhamento válido', label: 'Sem acompanhamento válido' },
+  { id: 'Sem acompanhamento válido', label: 'Absenteísmo' },
 ]
 
 const searchColumnOptions = [
@@ -24,9 +24,14 @@ const searchColumnOptions = [
 ]
 
 const classificationStyles = {
+  Absenteísmo: 'border-[rgba(224,47,53,0.22)] bg-[rgba(224,47,53,0.08)] text-[var(--danger)]',
   'Sem acompanhamento válido': 'border-[rgba(224,47,53,0.22)] bg-[rgba(224,47,53,0.08)] text-[var(--danger)]',
   'Acompanhamento incompleto': 'border-[rgba(229,109,34,0.24)] bg-[rgba(229,109,34,0.08)] text-[var(--alert)]',
 }
+
+const getClassificationLabel = (classification) => (
+  classification === 'Sem acompanhamento válido' ? 'Absenteísmo' : classification
+)
 
 const pluralize = (count, singular, plural = `${singular}s`) => `${count} ${count === 1 ? singular : plural}`
 
@@ -69,29 +74,6 @@ const getSearchValue = (finding, column) => {
   return values[column] || values.all
 }
 
-const SummaryCard = ({ label, value, description, tone }) => {
-  const toneClass = tone === 'danger'
-    ? 'bg-[rgba(224,47,53,0.08)] text-[var(--danger)]'
-    : tone === 'alert'
-      ? 'bg-[rgba(229,109,34,0.08)] text-[var(--alert)]'
-      : tone === 'success'
-        ? 'bg-[rgba(6,154,88,0.08)] text-[var(--success)]'
-        : 'bg-[rgba(22,103,232,0.08)] text-[var(--primary-dark)]'
-
-  return (
-    <article className="app-card flex items-center gap-4 p-5">
-      <div className={`grid h-12 w-12 shrink-0 place-items-center rounded-xl text-lg font-semibold ${toneClass}`} aria-hidden="true">
-        <Icons.Activity />
-      </div>
-      <div>
-        <p className="text-sm font-medium text-[var(--text-secondary)]">{label}</p>
-        <p className="mt-2 text-3xl font-semibold text-[var(--text-primary)]">{value}</p>
-        <p className="mt-1 text-xs leading-5 text-[var(--text-muted)]">{description}</p>
-      </div>
-    </article>
-  )
-}
-
 const IndicatorBadge = ({ indicator }) => (
   <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${
     indicator === 'C4'
@@ -104,7 +86,7 @@ const IndicatorBadge = ({ indicator }) => (
 
 const ClassificationBadge = ({ classification }) => (
   <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${classificationStyles[classification] || classificationStyles['Acompanhamento incompleto']}`}>
-    {classification}
+    {getClassificationLabel(classification)}
   </span>
 )
 
@@ -352,7 +334,7 @@ const FindingDrawer = ({ finding, onClose, triggerRef }) => {
         <dl className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <DetailField label="CPF" value={finding.cpf} />
           <DetailField label="CNS" value={finding.cns} />
-          <DetailField label="Resultado" value={finding.classification} />
+          <DetailField label="Resultado" value={getClassificationLabel(finding.classification)} />
         </dl>
 
         <section className="mt-5 rounded-xl border border-[var(--border)]">
