@@ -193,7 +193,6 @@ export const CalculoC1View = () => {
   const [teamQuery, setTeamQuery] = useState('')
   const [sortDirection, setSortDirection] = useState('desc')
   const [isFormulaOpen, setIsFormulaOpen] = useState(true)
-  const [isQualityOpen, setIsQualityOpen] = useState(false)
   const [selectedTeamId, setSelectedTeamId] = useState(null)
   const [refreshStamp, setRefreshStamp] = useState(null)
   const detailTriggerRef = useRef(null)
@@ -225,8 +224,6 @@ export const CalculoC1View = () => {
   ), [selectedTeamId, teams])
 
   const lastProcessingInfo = refreshStamp ? `Atualizado nesta sessão em ${refreshStamp}` : `Último processamento em ${formatDateTime(dataset.processingDate)}`
-  const processedCount = dataset.processedCompetencies.length
-  const expectedCount = dataset.competencies.length
   const municipalFormulaExample = `${formatNumber(summary.programmedDemand)} ÷ ${formatNumber(summary.totalConsidered)} × 100 = ${formatPercent(summary.currentResult)}`
 
   const handleRefresh = () => {
@@ -323,30 +320,6 @@ export const CalculoC1View = () => {
           helper="Conforme situações configuradas para o período"
           tone={summary.teamsToMonitor ? 'warning' : 'success'}
         />
-      </section>
-
-      <section className={`rounded-xl border p-5 ${dataset.dataQuality.complete ? 'border-[rgba(6,154,88,0.22)] bg-[rgba(6,154,88,0.06)]' : 'border-[rgba(240,132,0,0.24)] bg-[rgba(240,132,0,0.08)]'}`}>
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              {dataset.dataQuality.complete ? <Icons.CheckCircle /> : <Icons.Alert />}
-              <h2 className="text-base font-semibold text-[var(--text-primary)]">{dataset.dataQuality.note}</h2>
-            </div>
-            <p className="mt-2 text-sm text-[var(--text-secondary)]">
-              Competências processadas: {processedCount} de {expectedCount} · Registros desconsiderados: {formatNumber(dataset.dataQuality.disregardedRecords)}
-            </p>
-          </div>
-          <button type="button" onClick={() => setIsQualityOpen((value) => !value)} className="btn-secondary px-4 py-2 text-sm font-semibold">
-            Ver qualidade dos dados
-          </button>
-        </div>
-        {isQualityOpen && (
-          <div className="mt-4 grid gap-3 text-sm text-[var(--text-secondary)] md:grid-cols-3">
-            <p><span className="font-semibold text-[var(--text-primary)]">Competências:</span> {dataset.processedCompetencies.join(', ')}</p>
-            <p><span className="font-semibold text-[var(--text-primary)]">Fonte:</span> {dataset.dataSource}</p>
-            <p><span className="font-semibold text-[var(--text-primary)]">Resultado:</span> {dataset.dataQuality.complete ? 'Consolidado' : 'Provisório'}</p>
-          </div>
-        )}
       </section>
 
       <section className="app-card overflow-hidden">

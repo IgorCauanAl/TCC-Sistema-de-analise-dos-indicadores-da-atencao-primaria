@@ -16,22 +16,14 @@ const toneClasses = {
 const DASHBOARD_STATE_DEFAULTS = {
   quadrimester: null,
   selectedIndicatorId: 'c2',
-  activeMetric: 'acompanhamentoParcial',
   teamQuery: '',
-  quickFilter: 'all',
   refreshStamp: null,
   refreshStatus: 'idle',
   refreshMessage: '',
   isRankingExpanded: false,
+  teamPerformanceView: 'ranking',
   detailTeamId: null,
 }
-
-const QUICK_FILTERS = [
-  { id: 'all', label: 'Todas', match: () => true },
-  { id: 'critical', label: 'Críticas', match: (team) => team.situacao.toLowerCase() === 'cuidado programado fragilizado' },
-  { id: 'almostRegularized', label: 'Quase regularizadas', match: (team) => team.quaseRegularizados > 0 },
-  { id: 'withoutFollowUp', label: 'Absenteísmo', match: (team) => team.zerados > 0 },
-]
 
 const EXPLANATIONS = [
   {
@@ -89,51 +81,27 @@ const getIndicatorTone = (result, target) => {
   return 'danger'
 }
 
-const RankingTabs = ({ activeMetric, onChangeMetric }) => (
-  <div className="flex flex-wrap gap-2" role="tablist" aria-label="Indicadores do ranking de equipes">
-    {Object.entries(RANKING_METRICS).map(([metric, config]) => (
-      <button
-        key={metric}
-        type="button"
-        role="tab"
-        aria-selected={activeMetric === metric}
-        onClick={() => onChangeMetric(metric)}
-        className={`rounded-full border px-3 py-2 text-sm font-semibold transition ${
-          activeMetric === metric
-            ? 'border-[rgba(22,103,232,0.26)] bg-[rgba(22,103,232,0.1)] text-[var(--primary-dark)]'
-            : 'border-[var(--border)] bg-white text-[var(--text-secondary)] hover:bg-[var(--surface-interactive)]'
-        }`}
-      >
-        {config.label}
-      </button>
-    ))}
-  </div>
-)
-
-const RankingList = ({ teams, metric, activeMetric, onSelectMetric, isExpanded, onToggleExpanded, onDetailTeam }) => {
-  const config = RANKING_METRICS[metric]
-  const maxValue = Math.max(...teams.map((team) => team[metric]), 1)
+const TeamRankingView = ({ teams, isExpanded, hasMoreResults, onToggleExpanded, onDetailTeam }) => {
+  const config = RANKING_METRICS.quaseRegularizados
+  const maxValue = Math.max(...teams.map((team) => team.quaseRegularizados), 1)
 
   return (
-    <section className="app-card p-5 lg:p-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-semibold text-[var(--text-primary)]">Principais resultados por equipe</h2>
-          <p className="mt-1 text-sm text-[var(--text-secondary)]">{config.description}</p>
-        </div>
-        <RankingTabs activeMetric={activeMetric} onChangeMetric={onSelectMetric} />
+    <div className="p-5">
+      <div>
+        <h3 className="text-base font-semibold text-[var(--text-primary)]">Ranking de equipes próximas da regularização</h3>
+        <p className="mt-1 text-sm text-[var(--text-secondary)]">{config.description}</p>
       </div>
 
       <div className="mt-5 space-y-4">
         {teams.map((team, index) => (
-          <article key={team.id} className="grid grid-cols-[2rem_minmax(8.5rem,12rem)_minmax(18rem,1fr)_auto] items-center gap-3 text-sm">
+          <article key={team.id} className="grid grid-cols-[2rem_minmax(8.5rem,12rem)_minmax(10rem,1fr)] items-center gap-3 text-sm lg:grid-cols-[2rem_minmax(8.5rem,12rem)_minmax(18rem,1fr)_auto]">
             <span className="text-right font-semibold text-[var(--text-muted)]">{index + 1}</span>
             <span className="truncate font-semibold text-[var(--text-primary)]">{team.name}</span>
             <div className="h-2.5 rounded-full bg-[#edf2f8]">
-              <div className={`h-2.5 rounded-full ${config.barClass}`} style={{ width: `${(team[metric] / maxValue) * 100}%` }} />
+              <div className={`h-2.5 rounded-full ${config.barClass}`} style={{ width: `${(team.quaseRegularizados / maxValue) * 100}%` }} />
             </div>
-            <div className="flex min-w-32 items-center justify-end gap-3">
-              <span className="font-semibold text-[var(--text-primary)]">{formatNumber(team[metric])} pac.</span>
+            <div className="col-span-3 flex items-center justify-between gap-3 pl-11 lg:col-span-1 lg:min-w-32 lg:justify-end lg:pl-0">
+              <span className="font-semibold text-[var(--text-primary)]">{formatNumber(team.quaseRegularizados)} pac.</span>
               <button type="button" onClick={() => onDetailTeam(team)} className="text-xs font-semibold text-[var(--primary-dark)] hover:underline">
                 Detalhar
               </button>
@@ -141,30 +109,142 @@ const RankingList = ({ teams, metric, activeMetric, onSelectMetric, isExpanded, 
           </article>
         ))}
       </div>
-      <button type="button" onClick={onToggleExpanded} className="btn-secondary mt-5 px-4 py-2 text-sm font-semibold">
-        {isExpanded ? 'Ver apenas principais equipes' : 'Ver ranking completo'}
-      </button>
-    </section>
+
+      {hasMoreResults && (
+        <button type="button" onClick={onToggleExpanded} className="btn-secondary mt-5 px-4 py-2 text-sm font-semibold">
+          {isExpanded ? 'Ver apenas principais equipes' : 'Ver ranking completo'}
+        </button>
+      )}
+    </div>
   )
 }
 
-const QuickFilters = ({ activeFilter, onChangeFilter }) => (
-  <div className="flex flex-wrap gap-2" aria-label="Filtros rápidos">
-    {QUICK_FILTERS.map((filter) => (
-      <button
-        key={filter.id}
-        type="button"
-        onClick={() => onChangeFilter(filter.id)}
-        className={`rounded-full border px-3 py-2 text-sm font-semibold transition ${
-          activeFilter === filter.id
-            ? 'border-[rgba(22,103,232,0.26)] bg-[rgba(22,103,232,0.1)] text-[var(--primary-dark)]'
-            : 'border-[var(--border)] bg-white text-[var(--text-secondary)] hover:bg-[var(--surface-interactive)]'
-        }`}
-      >
-        {filter.label}
+const TeamSituationView = ({ teams, totalTeams, selectedIndicator, refreshStatus, teamQuery, onChangeTeamQuery, onClearTeamQuery, onDetailTeam }) => (
+  <>
+    <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--border-subtle)] px-5 py-4">
+      <div>
+        <h3 className="text-lg font-semibold text-[var(--text-primary)]">Situação por equipe</h3>
+        <p className="mt-1 text-sm text-[var(--text-secondary)]">{formatNumber(teams.length)} de {formatNumber(totalTeams)} equipes exibidas</p>
+      </div>
+      <label className="min-w-0 flex-1 md:max-w-xs">
+        <span className="sr-only">Pesquisar equipe</span>
+        <div className="form-shell flex items-center px-3 py-2">
+          <span className="mr-2 text-[var(--text-muted)]"><Icons.Search /></span>
+          <input
+            type="search"
+            value={teamQuery}
+            onChange={(event) => onChangeTeamQuery(event.target.value)}
+            placeholder="Pesquisar equipe"
+            className="app-input w-full border-0 bg-transparent text-sm text-[var(--text-primary)] outline-none"
+          />
+        </div>
+      </label>
+    </div>
+    <div className="overflow-x-auto">
+      <table className="data-table">
+        <thead>
+          <tr>
+            {['Equipe', `Resultado ${selectedIndicator.shortLabel}`, 'Quase regularizados', 'Principais Pendências', 'Quantidade de Pacientes', 'Ação'].map((header) => (
+              <th key={header}>{header}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {teams.map((team) => (
+            <tr key={team.id}>
+              <td className="whitespace-nowrap">{team.name}</td>
+              <td className="min-w-36">
+                {isNumericValue(team[selectedIndicator.id]) ? (
+                  <div className="flex items-center gap-3">
+                    <span className="w-10 font-semibold text-[var(--text-primary)]">{team[selectedIndicator.id]}%</span>
+                    <div className="w-24">
+                      <ProgressBar percent={team[selectedIndicator.id]} />
+                    </div>
+                  </div>
+                ) : (
+                  <DataStateBadge tone="alert">Dados indisponíveis</DataStateBadge>
+                )}
+              </td>
+              <td>{formatNumber(team.quaseRegularizados)} pacientes</td>
+              <td className="min-w-60">
+                <div className="font-medium text-[var(--text-primary)]">{team.principaisPendencias}</div>
+              </td>
+              <td>
+                <PatientCountCell value={team.quantidadePacientes} hasLoadingFailure={refreshStatus === 'error'} />
+              </td>
+              <td>
+                <button type="button" onClick={() => onDetailTeam(team)} className="text-sm font-semibold text-[var(--primary-dark)] hover:underline">
+                  Detalhar
+                </button>
+              </td>
+            </tr>
+          ))}
+          {!teams.length && (
+            <tr>
+              <td colSpan="6" className="px-6 py-10 text-center text-sm text-[var(--text-muted)]">
+                <div className="flex flex-col items-center gap-3">
+                  <span>Nenhuma equipe encontrada para a pesquisa informada.</span>
+                  {teamQuery.trim() && (
+                    <button type="button" onClick={onClearTeamQuery} className="btn-secondary px-4 py-2 text-sm font-semibold">
+                      Limpar pesquisa
+                    </button>
+                  )}
+                </div>
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  </>
+)
+
+const TeamPerformanceBlock = ({ view, rankingTeams, situationTeams, totalTeams, selectedIndicator, refreshStatus, teamQuery, isRankingExpanded, hasMoreRankingResults, onChangeView, onChangeTeamQuery, onClearTeamQuery, onToggleRankingExpanded, onDetailTeam }) => (
+  <section className="app-card overflow-hidden">
+    <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[var(--border-subtle)] px-5 py-4">
+      <div>
+        <h2 className="text-lg font-semibold text-[var(--text-primary)]">Desempenho das equipes</h2>
+        <p className="mt-1 text-sm text-[var(--text-secondary)]">
+          {view === 'ranking' ? 'Ranking e acesso rápido à situação por equipe.' : 'Tabela detalhada por equipe para o indicador selecionado.'}
+        </p>
+      </div>
+      <button type="button" onClick={() => onChangeView(view === 'ranking' ? 'situacao' : 'ranking')} className="btn-secondary px-4 py-2 text-sm font-semibold">
+        {view === 'ranking' ? 'Ir para situação por equipe' : 'Voltar ao ranking'}
       </button>
-    ))}
-  </div>
+    </div>
+
+    {refreshStatus === 'loading' ? (
+      <div className="min-h-[20rem] space-y-4 p-5" aria-label="Carregando desempenho das equipes">
+        {[1, 2, 3, 4, 5].map((item) => (
+          <div key={item} className="grid animate-pulse grid-cols-[2rem_minmax(8rem,14rem)_1fr_6rem] items-center gap-3">
+            <div className="h-4 rounded bg-[#e6edf7]" />
+            <div className="h-4 rounded bg-[#e6edf7]" />
+            <div className="h-3 rounded-full bg-[#e6edf7]" />
+            <div className="h-4 rounded bg-[#e6edf7]" />
+          </div>
+        ))}
+      </div>
+    ) : view === 'ranking' ? (
+      <TeamRankingView
+        teams={rankingTeams}
+        isExpanded={isRankingExpanded}
+        hasMoreResults={hasMoreRankingResults}
+        onToggleExpanded={onToggleRankingExpanded}
+        onDetailTeam={onDetailTeam}
+      />
+    ) : (
+      <TeamSituationView
+        teams={situationTeams}
+        totalTeams={totalTeams}
+        selectedIndicator={selectedIndicator}
+        refreshStatus={refreshStatus}
+        teamQuery={teamQuery}
+        onChangeTeamQuery={onChangeTeamQuery}
+        onClearTeamQuery={onClearTeamQuery}
+        onDetailTeam={onDetailTeam}
+      />
+    )}
+  </section>
 )
 
 const AppliedFiltersSummary = ({ quadrimesterLabel, indicatorLabel, detailTeamName }) => {
@@ -191,8 +271,17 @@ const AppliedFiltersSummary = ({ quadrimesterLabel, indicatorLabel, detailTeamNa
 }
 
 const ExplanationPanel = () => (
-  <section className="app-card p-5" aria-labelledby="dashboard-explanations-title">
-    <h2 id="dashboard-explanations-title" className="text-base font-semibold text-[var(--text-primary)]">Explicações dos termos</h2>
+  <details className="app-card group p-5">
+    <summary className="flex cursor-pointer list-none items-center justify-between gap-4">
+      <div>
+        <p className="text-sm font-medium text-[var(--primary-dark)]">Ajuda contextual</p>
+        <h2 id="dashboard-explanations-title" className="mt-1 text-base font-semibold text-[var(--text-primary)]">Explicações dos termos</h2>
+      </div>
+      <span className="btn-secondary inline-flex min-h-9 items-center px-3 py-1 text-sm font-semibold">
+        <span className="group-open:hidden">Mostrar</span>
+        <span className="hidden group-open:inline">Ocultar</span>
+      </span>
+    </summary>
     <dl className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
       {EXPLANATIONS.map((item) => (
         <div key={item.term} className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-elevated)] p-4">
@@ -201,7 +290,7 @@ const ExplanationPanel = () => (
         </div>
       ))}
     </dl>
-  </section>
+  </details>
 )
 
 const DataStateBadge = ({ tone, children }) => (
@@ -310,13 +399,12 @@ export const DashboardView = ({ onOpenC1, onOpenPatients, dashboardState, onDash
   const {
     quadrimester,
     selectedIndicatorId,
-    activeMetric,
     teamQuery,
-    quickFilter,
     refreshStamp,
     refreshStatus,
     refreshMessage,
     isRankingExpanded,
+    teamPerformanceView,
     detailTeamId,
   } = state
 
@@ -345,16 +433,9 @@ export const DashboardView = ({ onOpenC1, onOpenPatients, dashboardState, onDash
     () => quadrimesters.find((item) => item.id === quadrimester) || quadrimesters[0],
     [quadrimester, quadrimesters],
   )
-  const selectedQuickFilter = useMemo(
-    () => QUICK_FILTERS.find((filter) => filter.id === quickFilter) || QUICK_FILTERS[0],
-    [quickFilter],
-  )
-  const filteredTeams = useMemo(() => {
-    const searchFilteredTeams = getFilteredTeams(dashboard.teams, teamQuery)
-
-    return searchFilteredTeams.filter((team) => selectedQuickFilter.match(team))
-  }, [dashboard.teams, selectedQuickFilter, teamQuery])
-  const rankingTeams = useMemo(() => getTopTeams(dashboard.teams, activeMetric, isRankingExpanded ? dashboard.teams.length : 6), [activeMetric, dashboard.teams, isRankingExpanded])
+  const filteredTeams = useMemo(() => getFilteredTeams(dashboard.teams, teamQuery), [dashboard.teams, teamQuery])
+  const rankingTeams = useMemo(() => getTopTeams(dashboard.teams, 'quaseRegularizados', isRankingExpanded ? dashboard.teams.length : 6), [dashboard.teams, isRankingExpanded])
+  const hasMoreRankingResults = dashboard.teams.length > 6
   const detailTeam = useMemo(
     () => dashboard.teams.find((team) => team.id === detailTeamId) || null,
     [dashboard.teams, detailTeamId],
@@ -391,13 +472,6 @@ export const DashboardView = ({ onOpenC1, onOpenPatients, dashboardState, onDash
     updateDashboardState({ selectedIndicatorId: indicatorId })
   }
 
-  const handleSelectMetric = (metric) => {
-    updateDashboardState({
-      activeMetric: metric,
-      isRankingExpanded: false,
-    })
-  }
-
   const handleDetailTeam = (team) => {
     updateDashboardState({ detailTeamId: team.id })
   }
@@ -406,10 +480,9 @@ export const DashboardView = ({ onOpenC1, onOpenPatients, dashboardState, onDash
     updateDashboardState({
       quadrimester: quadrimesters[0].id,
       selectedIndicatorId: DASHBOARD_STATE_DEFAULTS.selectedIndicatorId,
-      activeMetric: DASHBOARD_STATE_DEFAULTS.activeMetric,
       teamQuery: '',
-      quickFilter: DASHBOARD_STATE_DEFAULTS.quickFilter,
       isRankingExpanded: false,
+      teamPerformanceView: DASHBOARD_STATE_DEFAULTS.teamPerformanceView,
       detailTeamId: null,
     })
   }
@@ -552,96 +625,22 @@ export const DashboardView = ({ onOpenC1, onOpenPatients, dashboardState, onDash
 
       <ExplanationPanel />
 
-      <div>
-        <RankingList
-          teams={rankingTeams}
-          metric={activeMetric}
-          activeMetric={activeMetric}
-          onSelectMetric={handleSelectMetric}
-          isExpanded={isRankingExpanded}
-          onToggleExpanded={() => updateDashboardState((currentState) => ({ ...currentState, isRankingExpanded: !currentState.isRankingExpanded }))}
-          onDetailTeam={handleDetailTeam}
-        />
-      </div>
-
-      <section className="app-card overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--border-subtle)] px-5 py-4">
-          <div>
-            <h2 className="text-lg font-semibold text-[var(--text-primary)]">Situação por equipe</h2>
-            <p className="mt-1 text-sm text-[var(--text-secondary)]">{formatNumber(filteredTeams.length)} de {formatNumber(dashboard.teams.length)} equipes exibidas</p>
-          </div>
-          <QuickFilters activeFilter={quickFilter} onChangeFilter={(filterId) => updateDashboardState({ quickFilter: filterId })} />
-          <label className="min-w-0 flex-1 md:max-w-xs">
-            <span className="sr-only">Pesquisar equipe</span>
-            <div className="form-shell flex items-center px-3 py-2">
-              <span className="mr-2 text-[var(--text-muted)]"><Icons.Search /></span>
-              <input
-                type="search"
-                value={teamQuery}
-                onChange={(event) => updateDashboardState({ teamQuery: event.target.value })}
-                placeholder="Pesquisar equipe"
-                className="app-input w-full border-0 bg-transparent text-sm text-[var(--text-primary)] outline-none"
-              />
-            </div>
-          </label>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="data-table">
-            <thead>
-              <tr>
-                {['Equipe', `Resultado ${selectedIndicator.shortLabel}`, 'Quase regularizados', 'Principais Pendências', 'Quantidade de Pacientes', 'Ação'].map((header) => (
-                  <th key={header}>{header}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filteredTeams.map((team) => (
-                <tr key={team.id}>
-                  <td className="whitespace-nowrap">{team.name}</td>
-                  <td className="min-w-36">
-                    {isNumericValue(team[selectedIndicator.id]) ? (
-                      <div className="flex items-center gap-3">
-                        <span className="w-10 font-semibold text-[var(--text-primary)]">{team[selectedIndicator.id]}%</span>
-                        <div className="w-24">
-                          <ProgressBar percent={team[selectedIndicator.id]} />
-                        </div>
-                      </div>
-                    ) : (
-                      <DataStateBadge tone="alert">Dados indisponíveis</DataStateBadge>
-                    )}
-                  </td>
-                  <td>{formatNumber(team.quaseRegularizados)} pacientes</td>
-                  <td className="min-w-60">
-                    <div className="font-medium text-[var(--text-primary)]">{team.principaisPendencias}</div>
-                  </td>
-                  <td>
-                    <PatientCountCell value={team.quantidadePacientes} hasLoadingFailure={refreshStatus === 'error'} />
-                  </td>
-                  <td>
-                    <button type="button" onClick={() => handleDetailTeam(team)} className="text-sm font-semibold text-[var(--primary-dark)] hover:underline">
-                      Detalhar
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {!filteredTeams.length && (
-                <tr>
-                  <td colSpan="6" className="px-6 py-10 text-center text-sm text-[var(--text-muted)]">
-                    <div className="flex flex-col items-center gap-3">
-                      <span>Nenhuma equipe encontrada para a pesquisa informada.</span>
-                      {teamQuery.trim() && (
-                        <button type="button" onClick={() => updateDashboardState({ teamQuery: '' })} className="btn-secondary px-4 py-2 text-sm font-semibold">
-                          Limpar pesquisa
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
+      <TeamPerformanceBlock
+        view={teamPerformanceView}
+        rankingTeams={rankingTeams}
+        situationTeams={filteredTeams}
+        totalTeams={dashboard.teams.length}
+        selectedIndicator={selectedIndicator}
+        refreshStatus={refreshStatus}
+        teamQuery={teamQuery}
+        isRankingExpanded={isRankingExpanded}
+        hasMoreRankingResults={hasMoreRankingResults}
+        onChangeView={(view) => updateDashboardState({ teamPerformanceView: view })}
+        onChangeTeamQuery={(query) => updateDashboardState({ teamQuery: query })}
+        onClearTeamQuery={() => updateDashboardState({ teamQuery: '' })}
+        onToggleRankingExpanded={() => updateDashboardState((currentState) => ({ ...currentState, isRankingExpanded: !currentState.isRankingExpanded }))}
+        onDetailTeam={handleDetailTeam}
+      />
 
       {detailTeam && (
         <DetailDrawer

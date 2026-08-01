@@ -284,11 +284,17 @@ const CurrentQuarterStatus = ({ patient }) => (
 )
 
 const RiskClassificationGuide = () => (
-  <section className="app-card p-5" aria-labelledby="patient-risk-guide-title">
-    <div>
-      <p className="text-sm font-medium text-[var(--primary-dark)]">Classificação</p>
-      <h2 id="patient-risk-guide-title" className="mt-1 text-lg font-semibold text-[var(--text-primary)]">Critérios resumidos de risco temporal</h2>
-    </div>
+  <details className="app-card group p-5">
+    <summary className="flex cursor-pointer list-none items-center justify-between gap-4">
+      <div>
+        <p className="text-sm font-medium text-[var(--primary-dark)]">Classificação</p>
+        <h2 id="patient-risk-guide-title" className="mt-1 text-lg font-semibold text-[var(--text-primary)]">Critérios resumidos de risco temporal</h2>
+      </div>
+      <span className="btn-secondary inline-flex min-h-9 items-center px-3 py-1 text-sm font-semibold">
+        <span className="group-open:hidden">Mostrar</span>
+        <span className="hidden group-open:inline">Ocultar</span>
+      </span>
+    </summary>
     <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
       {riskClassificationSummaries.map((item) => (
         <article key={item.id} className={`rounded-xl border p-4 ${riskPanelStyles[item.id]}`}>
@@ -297,7 +303,7 @@ const RiskClassificationGuide = () => (
         </article>
       ))}
     </div>
-  </section>
+  </details>
 )
 
 const getDelayHistoryDetails = (patient, selectedIndicator) => {

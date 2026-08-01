@@ -448,7 +448,9 @@ export const JanelaOportunidadeView = () => {
 
       {loadState === 'ready' && OPPORTUNITY_RECORDS.length > 0 && (
         <>
-          <OpportunityTeamSelector teams={teams} selectedTeam={selectedTeam} onSelectTeam={setSelectedTeam} />
+          {!selectedTeam && (
+            <OpportunityTeamSelector teams={teams} selectedTeam={selectedTeam} onSelectTeam={setSelectedTeam} />
+          )}
 
           {selectedTeam && (
             <>
@@ -460,7 +462,7 @@ export const JanelaOportunidadeView = () => {
                   </h2>
                 </div>
                 <button type="button" onClick={handleBackToTeams} className="btn-secondary px-4 py-2 text-sm font-semibold">
-                  Trocar equipe
+                  Voltar para selecionar equipe
                 </button>
               </div>
 

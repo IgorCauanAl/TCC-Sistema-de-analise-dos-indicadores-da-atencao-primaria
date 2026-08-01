@@ -45,9 +45,9 @@ export const Sidebar = ({ activeModule, menuItems, onChangeModule }) => {
                 }`}
               >
                 <span className={`mr-3 shrink-0 ${activeModule === item.id ? 'text-[var(--primary)]' : 'text-[var(--text-primary)]'}`}>{item.icon}</span>
-                <span className="text-sm font-medium leading-snug">{item.label}</span>
+                <span className="text-sm font-semibold leading-snug">{item.label}</span>
                 {index < 8 && (
-                  <span className="ml-auto rounded-lg border border-[var(--border)] bg-white px-2 py-0.5 text-xs font-semibold text-[var(--text-muted)]" aria-hidden="true">
+                  <span className="ml-auto rounded-lg border border-[rgba(22,103,232,0.24)] bg-[rgba(22,103,232,0.08)] px-2 py-0.5 text-[0.75rem] font-bold text-[var(--primary-dark)]" aria-hidden="true">
                     Alt+{index + 1}
                   </span>
                 )}

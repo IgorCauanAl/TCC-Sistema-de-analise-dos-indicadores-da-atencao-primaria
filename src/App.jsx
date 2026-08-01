@@ -181,7 +181,7 @@ export default function App() {
         <header className="sticky top-0 z-10 flex h-[72px] items-center justify-between border-b border-[var(--border)] bg-white px-5 md:px-8">
           <div>
             <div className="text-base font-medium text-[var(--text-primary)]">Sistema de Apoio à Decisão - SUS</div>
-            <p className="mt-1 text-xs font-medium text-[var(--text-secondary)]">Tela atual: {activeMenuItem.label}</p>
+            <p className="mt-1 text-sm font-semibold text-[var(--text-secondary)]">Tela atual: {activeMenuItem.label}</p>
           </div>
           <div className="hidden items-center gap-4 sm:flex">
             {previousModule && (
