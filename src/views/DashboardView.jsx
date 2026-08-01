@@ -552,15 +552,6 @@ export const DashboardView = ({ onOpenC1, onOpenPatients, dashboardState, onDash
           <button type="button" onClick={handleClearFilters} className="btn-secondary inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold">
             Limpar filtros
           </button>
-          <button
-            type="button"
-            onClick={handleRefresh}
-            disabled={refreshStatus === 'loading'}
-            className="btn-primary inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-70"
-          >
-            <Icons.Activity />
-            {refreshStatus === 'loading' ? 'Atualizando...' : 'Atualizar painel'}
-          </button>
         </div>
       </header>
 

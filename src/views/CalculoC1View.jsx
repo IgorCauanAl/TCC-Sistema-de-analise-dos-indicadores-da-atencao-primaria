@@ -194,7 +194,6 @@ export const CalculoC1View = () => {
   const [sortDirection, setSortDirection] = useState('desc')
   const [isFormulaOpen, setIsFormulaOpen] = useState(true)
   const [selectedTeamId, setSelectedTeamId] = useState(null)
-  const [refreshStamp, setRefreshStamp] = useState(null)
   const detailTriggerRef = useRef(null)
 
   const dataset = useMemo(() => getC1Dataset(selectedQuadrimester), [selectedQuadrimester])
@@ -223,12 +222,8 @@ export const CalculoC1View = () => {
     teams.find((team) => team.id === selectedTeamId) || null
   ), [selectedTeamId, teams])
 
-  const lastProcessingInfo = refreshStamp ? `Atualizado nesta sessão em ${refreshStamp}` : `Último processamento em ${formatDateTime(dataset.processingDate)}`
+  const lastProcessingInfo = `Último processamento em ${formatDateTime(dataset.processingDate)}`
   const municipalFormulaExample = `${formatNumber(summary.programmedDemand)} ÷ ${formatNumber(summary.totalConsidered)} × 100 = ${formatPercent(summary.currentResult)}`
-
-  const handleRefresh = () => {
-    setRefreshStamp(new Intl.DateTimeFormat('pt-BR', { timeStyle: 'short' }).format(new Date()))
-  }
 
   const handleOpenDetail = (teamId, event) => {
     detailTriggerRef.current = event.currentTarget
@@ -244,10 +239,6 @@ export const CalculoC1View = () => {
           <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">Acompanhamento da demanda programada e espontânea por equipe</p>
           <p className="mt-2 text-xs font-medium text-[var(--text-muted)]">{lastProcessingInfo}</p>
         </div>
-        <button type="button" onClick={handleRefresh} className="btn-primary inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold">
-          <Icons.Activity />
-          Atualizar cálculo
-        </button>
       </header>
 
       <section className="app-card p-5" aria-label="Filtros do C1">

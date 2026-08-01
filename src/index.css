@@ -120,17 +120,17 @@ a:focus-visible {
 
 .btn-secondary {
   min-height: 40px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--primary);
   border-radius: 10px;
-  background: transparent;
-  color: var(--text-secondary);
+  background: var(--primary);
+  color: #ffffff;
   transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
 }
 
 .btn-secondary:hover {
-  border-color: rgba(22, 103, 232, 0.45);
-  background: var(--surface-interactive);
-  color: var(--text-primary);
+  border-color: var(--primary-dark);
+  background: var(--primary-dark);
+  color: #ffffff;
 }
 
 .data-table {

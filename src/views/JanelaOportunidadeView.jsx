@@ -361,7 +361,6 @@ export const JanelaOportunidadeView = () => {
   const [selectedTeam, setSelectedTeam] = useState(null)
   const [query, setQuery] = useState('')
   const [selectedRecord, setSelectedRecord] = useState(null)
-  const [updateFeedback, setUpdateFeedback] = useState('')
   const drawerTriggerRef = useRef(null)
 
   useEffect(() => {
@@ -415,16 +414,6 @@ export const JanelaOportunidadeView = () => {
           <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--text-secondary)]">
             Pacientes que podem resolver pendências dos indicadores C4 e C5 em uma mesma consulta.
           </p>
-        </div>
-        <div className="flex flex-col items-start gap-2 sm:items-end">
-          <button
-            type="button"
-            onClick={() => setUpdateFeedback('Ação demonstrativa no protótipo: oportunidades recalculadas com dados importados disponíveis.')}
-            className="btn-secondary px-4 py-2 text-sm font-semibold"
-          >
-            Atualizar oportunidades
-          </button>
-          {updateFeedback && <p className="text-xs font-medium text-[var(--success)]" role="status">{updateFeedback}</p>}
         </div>
       </header>
 

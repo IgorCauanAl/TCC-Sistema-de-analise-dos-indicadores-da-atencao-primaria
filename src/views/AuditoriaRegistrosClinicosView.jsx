@@ -393,7 +393,6 @@ export const AuditoriaRegistrosClinicosView = () => {
   const [searchColumn, setSearchColumn] = useState('all')
   const [query, setQuery] = useState('')
   const [selectedFinding, setSelectedFinding] = useState(null)
-  const [updateFeedback, setUpdateFeedback] = useState('')
   const drawerTriggerRef = useRef(null)
 
   const teams = useMemo(() => getTeams(), [])
@@ -433,16 +432,6 @@ export const AuditoriaRegistrosClinicosView = () => {
           <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--text-secondary)]">
             Analisa as pendências individuais de C4 e C5 importadas do e-SUS Helper e explica a classificação aplicada.
           </p>
-        </div>
-        <div className="flex flex-col items-start gap-2 sm:items-end">
-          <button
-            type="button"
-            onClick={() => setUpdateFeedback('Auditoria demonstrativa atualizada com os dados importados disponíveis.')}
-            className="btn-primary px-4 py-2 text-sm font-semibold"
-          >
-            Atualizar auditoria
-          </button>
-          {updateFeedback && <p className="text-xs font-medium text-[var(--success)]" role="status">{updateFeedback}</p>}
         </div>
       </header>
 
