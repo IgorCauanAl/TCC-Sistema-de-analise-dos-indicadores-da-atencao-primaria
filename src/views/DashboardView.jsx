@@ -21,9 +21,12 @@ const DASHBOARD_STATE_DEFAULTS = {
   refreshStatus: 'idle',
   refreshMessage: '',
   isRankingExpanded: false,
+  selectedRankingMetric: 'quaseRegularizados',
   teamPerformanceView: 'ranking',
   detailTeamId: null,
 }
+
+const RANKING_METRIC_OPTIONS = ['quaseRegularizados', 'zerados', 'acompanhamentoParcial']
 
 const EXPLANATIONS = [
   {
@@ -81,15 +84,39 @@ const getIndicatorTone = (result, target) => {
   return 'danger'
 }
 
-const TeamRankingView = ({ teams, isExpanded, hasMoreResults, onToggleExpanded, onDetailTeam }) => {
-  const config = RANKING_METRICS.quaseRegularizados
-  const maxValue = Math.max(...teams.map((team) => team.quaseRegularizados), 1)
+const TeamRankingView = ({ teams, selectedMetric, totals, isExpanded, hasMoreResults, onChangeMetric, onToggleExpanded, onDetailTeam }) => {
+  const config = RANKING_METRICS[selectedMetric] || RANKING_METRICS.quaseRegularizados
+  const maxValue = Math.max(...teams.map((team) => team[selectedMetric] || 0), 1)
 
   return (
     <div className="p-5">
       <div>
-        <h3 className="text-base font-semibold text-[var(--text-primary)]">Ranking de equipes próximas da regularização</h3>
+        <h3 className="text-base font-semibold text-[var(--text-primary)]">Ranking de equipes - {config.label}</h3>
         <p className="mt-1 text-sm text-[var(--text-secondary)]">{config.description}</p>
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3" aria-label="Selecionar situação do ranking">
+        {RANKING_METRIC_OPTIONS.map((metric) => {
+          const metricConfig = RANKING_METRICS[metric]
+          const isSelected = metric === selectedMetric
+
+          return (
+            <button
+              key={metric}
+              type="button"
+              onClick={() => onChangeMetric(metric)}
+              className={`rounded-xl border px-4 py-3 text-left transition ${
+                isSelected
+                  ? `${toneClasses[metricConfig.tone]} ring-2 ring-[rgba(22,103,232,0.18)]`
+                  : 'border-[var(--border)] bg-white text-[var(--text-primary)] hover:bg-[var(--surface-interactive)]'
+              }`}
+              aria-pressed={isSelected}
+            >
+              <span className="block text-sm font-semibold">{metricConfig.label}</span>
+              <span className="mt-1 block text-xl font-semibold">{formatNumber(totals[metric] || 0)} pacientes</span>
+            </button>
+          )
+        })}
       </div>
 
       <div className="mt-5 space-y-4">
@@ -98,10 +125,10 @@ const TeamRankingView = ({ teams, isExpanded, hasMoreResults, onToggleExpanded, 
             <span className="text-right font-semibold text-[var(--text-muted)]">{index + 1}</span>
             <span className="truncate font-semibold text-[var(--text-primary)]">{team.name}</span>
             <div className="h-2.5 rounded-full bg-[#edf2f8]">
-              <div className={`h-2.5 rounded-full ${config.barClass}`} style={{ width: `${(team.quaseRegularizados / maxValue) * 100}%` }} />
+              <div className={`h-2.5 rounded-full ${config.barClass}`} style={{ width: `${((team[selectedMetric] || 0) / maxValue) * 100}%` }} />
             </div>
             <div className="col-span-3 flex items-center justify-between gap-3 pl-11 lg:col-span-1 lg:min-w-32 lg:justify-end lg:pl-0">
-              <span className="font-semibold text-[var(--text-primary)]">{formatNumber(team.quaseRegularizados)} pac.</span>
+              <span className="font-semibold text-[var(--text-primary)]">{formatNumber(team[selectedMetric] || 0)} pac.</span>
               <button type="button" onClick={() => onDetailTeam(team)} className="text-xs font-semibold text-[var(--primary-dark)] hover:underline">
                 Detalhar
               </button>
@@ -199,7 +226,7 @@ const TeamSituationView = ({ teams, totalTeams, selectedIndicator, refreshStatus
   </>
 )
 
-const TeamPerformanceBlock = ({ view, rankingTeams, situationTeams, totalTeams, selectedIndicator, refreshStatus, teamQuery, isRankingExpanded, hasMoreRankingResults, onChangeView, onChangeTeamQuery, onClearTeamQuery, onToggleRankingExpanded, onDetailTeam }) => (
+const TeamPerformanceBlock = ({ view, rankingTeams, situationTeams, totalTeams, selectedIndicator, selectedRankingMetric, totals, refreshStatus, teamQuery, isRankingExpanded, hasMoreRankingResults, onChangeView, onChangeRankingMetric, onChangeTeamQuery, onClearTeamQuery, onToggleRankingExpanded, onDetailTeam }) => (
   <section className="app-card overflow-hidden">
     <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[var(--border-subtle)] px-5 py-4">
       <div>
@@ -227,8 +254,11 @@ const TeamPerformanceBlock = ({ view, rankingTeams, situationTeams, totalTeams, 
     ) : view === 'ranking' ? (
       <TeamRankingView
         teams={rankingTeams}
+        selectedMetric={selectedRankingMetric}
+        totals={totals}
         isExpanded={isRankingExpanded}
         hasMoreResults={hasMoreRankingResults}
+        onChangeMetric={onChangeRankingMetric}
         onToggleExpanded={onToggleRankingExpanded}
         onDetailTeam={onDetailTeam}
       />
@@ -404,6 +434,7 @@ export const DashboardView = ({ onOpenC1, onOpenPatients, dashboardState, onDash
     refreshStatus,
     refreshMessage,
     isRankingExpanded,
+    selectedRankingMetric,
     teamPerformanceView,
     detailTeamId,
   } = state
@@ -434,7 +465,7 @@ export const DashboardView = ({ onOpenC1, onOpenPatients, dashboardState, onDash
     [quadrimester, quadrimesters],
   )
   const filteredTeams = useMemo(() => getFilteredTeams(dashboard.teams, teamQuery), [dashboard.teams, teamQuery])
-  const rankingTeams = useMemo(() => getTopTeams(dashboard.teams, 'quaseRegularizados', isRankingExpanded ? dashboard.teams.length : 6), [dashboard.teams, isRankingExpanded])
+  const rankingTeams = useMemo(() => getTopTeams(dashboard.teams, selectedRankingMetric, isRankingExpanded ? dashboard.teams.length : 6), [dashboard.teams, isRankingExpanded, selectedRankingMetric])
   const hasMoreRankingResults = dashboard.teams.length > 6
   const detailTeam = useMemo(
     () => dashboard.teams.find((team) => team.id === detailTeamId) || null,
@@ -482,6 +513,7 @@ export const DashboardView = ({ onOpenC1, onOpenPatients, dashboardState, onDash
       selectedIndicatorId: DASHBOARD_STATE_DEFAULTS.selectedIndicatorId,
       teamQuery: '',
       isRankingExpanded: false,
+      selectedRankingMetric: DASHBOARD_STATE_DEFAULTS.selectedRankingMetric,
       teamPerformanceView: DASHBOARD_STATE_DEFAULTS.teamPerformanceView,
       detailTeamId: null,
     })
@@ -631,11 +663,14 @@ export const DashboardView = ({ onOpenC1, onOpenPatients, dashboardState, onDash
         situationTeams={filteredTeams}
         totalTeams={dashboard.teams.length}
         selectedIndicator={selectedIndicator}
+        selectedRankingMetric={selectedRankingMetric}
+        totals={totals}
         refreshStatus={refreshStatus}
         teamQuery={teamQuery}
         isRankingExpanded={isRankingExpanded}
         hasMoreRankingResults={hasMoreRankingResults}
         onChangeView={(view) => updateDashboardState({ teamPerformanceView: view })}
+        onChangeRankingMetric={(metric) => updateDashboardState({ selectedRankingMetric: metric })}
         onChangeTeamQuery={(query) => updateDashboardState({ teamQuery: query })}
         onClearTeamQuery={() => updateDashboardState({ teamQuery: '' })}
         onToggleRankingExpanded={() => updateDashboardState((currentState) => ({ ...currentState, isRankingExpanded: !currentState.isRankingExpanded }))}
