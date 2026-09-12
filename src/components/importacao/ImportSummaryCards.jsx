@@ -10,17 +10,17 @@ const cardStyles = {
 
 export const ImportSummaryCards = ({ summary }) => {
   const items = [
-    { id: 'received', label: 'Arquivos recebidos', value: summary.received, icon: <Icons.Upload /> },
+    { id: 'received', label: 'Arquivos recebidos', value: summary.received, icon: <Icons.HandArrowDown /> },
     { id: 'imported', label: 'Importados', value: summary.imported, icon: <Icons.CheckCircle /> },
-    { id: 'warning', label: 'Importados com avisos', value: summary.warning, icon: <Icons.Alert /> },
-    { id: 'failed', label: 'Não importados', value: summary.failed, icon: <Icons.Alert /> },
+    { id: 'warning', label: 'Importados com avisos', value: summary.warning, icon: <Icons.Warning /> },
+    { id: 'failed', label: 'Não importados', value: summary.failed, icon: <Icons.Siren /> },
   ]
 
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
       {items.map((item) => (
         <article key={item.id} className="app-card p-5">
-          <div className={`mb-4 flex h-10 w-10 items-center justify-center rounded-xl border ${cardStyles[item.id]}`}>
+          <div className="mb-4 flex h-6 w-6 items-center justify-center text-[var(--primary)]">
             {item.icon}
           </div>
           <p className="text-sm font-semibold text-[var(--text-primary)]">{item.label}</p>

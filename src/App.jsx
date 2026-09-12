@@ -240,16 +240,16 @@ export default function App() {
             <dl className="mt-5 divide-y divide-[var(--border-subtle)] rounded-xl border border-[var(--border)]">
               {shortcutItems.map((item, index) => (
                 <div key={item.id} className="grid grid-cols-[6rem_1fr] items-center gap-4 px-4 py-3">
-                  <dt className="rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] px-2 py-1 text-center text-sm font-semibold text-[var(--primary-dark)]">Alt + {index + 1}</dt>
+                  <dt className="rounded-lg border border-slate-200 bg-slate-100 px-2 py-1 text-center text-sm font-medium text-slate-500">Alt + {index + 1}</dt>
                   <dd className="text-sm font-medium text-[var(--text-primary)]">{item.label}</dd>
                 </div>
               ))}
               <div className="grid grid-cols-[6rem_1fr] items-center gap-4 px-4 py-3">
-                <dt className="rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] px-2 py-1 text-center text-sm font-semibold text-[var(--primary-dark)]">?</dt>
+                <dt className="rounded-lg border border-slate-200 bg-slate-100 px-2 py-1 text-center text-sm font-medium text-slate-500">?</dt>
                 <dd className="text-sm font-medium text-[var(--text-primary)]">Abrir esta lista de atalhos</dd>
               </div>
               <div className="grid grid-cols-[6rem_1fr] items-center gap-4 px-4 py-3">
-                <dt className="rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] px-2 py-1 text-center text-sm font-semibold text-[var(--primary-dark)]">Esc</dt>
+                <dt className="rounded-lg border border-slate-200 bg-slate-100 px-2 py-1 text-center text-sm font-medium text-slate-500">Esc</dt>
                 <dd className="text-sm font-medium text-[var(--text-primary)]">Fechar diálogos abertos</dd>
               </div>
             </dl>

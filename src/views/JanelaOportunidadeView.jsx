@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { PatientCarePendingSection } from '../components/pacientes/PatientCarePendingSection'
 import { Icons } from '../components/ui/Icons'
 import { getDelayHistoryStatus } from '../utils/temporalStatus'
+import { getAcsDisplayName } from '../utils/acsLabels'
 import { OPPORTUNITY_RECORDS } from '../data/opportunityWindowData'
 
 const delayHistoryRank = {
@@ -155,8 +156,8 @@ const OpportunityEmptyState = ({ title, description, onAction, actionLabel }) =>
 const OpportunityTeamSelector = ({ teams, selectedTeam, onSelectTeam }) => (
   <section className="space-y-3">
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <h2 className="text-lg font-semibold text-[var(--text-primary)]">Selecione a equipe/INE</h2>
-      <p className="text-sm text-[var(--text-muted)]">A tabela será exibida após a seleção da equipe.</p>
+      <h2 className="text-lg font-semibold text-[var(--text-primary)]">Selecione o agente comunitário</h2>
+      <p className="text-sm text-[var(--text-muted)]">A tabela será exibida após a seleção do ACS e da microárea.</p>
     </div>
     <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
       {teams.map((team) => (
@@ -169,8 +170,8 @@ const OpportunityTeamSelector = ({ teams, selectedTeam, onSelectTeam }) => (
             selectedTeam === team.id ? 'border-[var(--primary)] ring-2 ring-[rgba(22,103,232,0.12)]' : ''
           }`}
         >
-          <span className="block truncate font-semibold text-[var(--text-primary)]">{team.name}</span>
-          <span className="mt-2 block text-xs text-[var(--text-muted)]">INE {team.ine}</span>
+          <span className="block truncate font-semibold text-[var(--text-primary)]">{getAcsDisplayName(team)}</span>
+          <span className="mt-2 block text-xs text-[var(--text-muted)]">{team.name} · INE {team.ine}</span>
         </button>
       ))}
     </div>
@@ -445,7 +446,7 @@ export const JanelaOportunidadeView = () => {
             <>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-medium text-[var(--text-muted)]">Equipe selecionada</p>
+                  <p className="text-sm font-medium text-[var(--text-muted)]">Agente comunitário selecionado</p>
                   <h2 className="mt-1 text-xl font-semibold text-[var(--text-primary)]">
                     {teams.find((team) => team.id === selectedTeam)?.name}
                   </h2>

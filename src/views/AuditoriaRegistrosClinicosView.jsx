@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Icons } from '../components/ui/Icons'
 import { CLINICAL_AUDIT_FINDINGS } from '../data/clinicalAuditData'
+import { getAcsDisplayName } from '../utils/acsLabels'
 
 const indicatorOptions = [
   { id: 'all', label: 'Todos os indicadores' },
@@ -132,17 +133,17 @@ const Filters = ({
         ))}
       </select>
 
-      <label className="sr-only" htmlFor="clinical-audit-team">Equipe</label>
+      <label className="sr-only" htmlFor="clinical-audit-team">Agente comunitário e microárea</label>
       <select
         id="clinical-audit-team"
         value={teamFilter}
         onChange={(event) => onTeamChange(event.target.value)}
         className="form-control px-3 py-2 text-sm outline-none"
-        aria-label="Filtrar por equipe"
+        aria-label="Filtrar por agente comunitário e microárea"
       >
-        <option value="all">Todas as equipes</option>
+        <option value="all">Todos os ACS e microáreas</option>
         {teams.map((team) => (
-          <option key={team.id} value={team.id}>{team.label} — INE {team.ine}</option>
+          <option key={team.id} value={team.id}>{getAcsDisplayName(team)} — {team.label}</option>
         ))}
       </select>
 

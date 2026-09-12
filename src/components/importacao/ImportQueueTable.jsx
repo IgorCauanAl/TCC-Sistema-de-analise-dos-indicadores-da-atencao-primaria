@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { Icons } from '../ui/Icons'
 import { ImportValidationBadge } from './ImportValidationBadge'
+import { getAcsDisplayName } from '../../utils/acsLabels'
 
 const getTeamLabel = (file, teams) => {
   if (!file.teamId) return 'Não identificada'
@@ -70,9 +71,9 @@ export const ImportQueueTable = ({ files, teams, onFilesSelected, onRemove, onCl
                         }}
                         defaultValue=""
                       >
-                        <option value="" disabled>Selecionar equipe</option>
+                        <option value="" disabled>Selecionar ACS e microárea</option>
                         {filteredTeams.map((team) => (
-                          <option key={team.id} value={team.id}>{team.name} — INE {team.ine}</option>
+                          <option key={team.id} value={team.id}>{getAcsDisplayName(team)} — {team.name}</option>
                         ))}
                       </select>
                     </div>
@@ -132,9 +133,9 @@ export const ImportQueueTable = ({ files, teams, onFilesSelected, onRemove, onCl
                 }}
                 defaultValue=""
               >
-                <option value="" disabled>Selecionar equipe</option>
+                <option value="" disabled>Selecionar ACS e microárea</option>
                 {filteredTeams.map((team) => (
-                  <option key={team.id} value={team.id}>{team.name} — INE {team.ine}</option>
+                  <option key={team.id} value={team.id}>{getAcsDisplayName(team)} — {team.name}</option>
                 ))}
               </select>
             </div>

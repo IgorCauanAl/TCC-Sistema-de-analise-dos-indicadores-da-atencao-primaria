@@ -46,34 +46,27 @@ const SummaryCard = ({ label, value, description, icon, tone = 'primary' }) => {
       <p className="mt-3 text-3xl font-semibold text-[var(--text-primary)]">{value}</p>
       <p className="mt-2 text-sm leading-5 text-[var(--text-muted)]">{description}</p>
     </div>
-    <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl ${toneClass}`} aria-hidden="true">
+    <span className="grid h-6 w-6 shrink-0 place-items-center text-[var(--primary)]" aria-hidden="true">
       {icon}
     </span>
   </article>
   )
 }
 
-const InconsistencySummary = ({ missingCpfCount, typeCount, affectedTeamsCount }) => (
-  <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+const InconsistencySummary = ({ missingCpfCount, affectedTeamsCount }) => (
+  <section className="grid grid-cols-1 gap-4 md:grid-cols-2">
     <SummaryCard
       label="Registros para revisar"
       value={missingCpfCount}
       description="Sem alteração automática nos cadastros"
-      icon={<Icons.Alert />}
+      icon={<Icons.Warning />}
       tone="alert"
-    />
-    <SummaryCard
-      label="Tipos identificados"
-      value={typeCount}
-      description="Ausência de CPF"
-      icon={<Icons.Activity />}
-      tone="primary"
     />
     <SummaryCard
       label="Equipes envolvidas"
       value={affectedTeamsCount}
       description="Conferência distribuída por equipe de origem"
-      icon={<Icons.User />}
+      icon={<Icons.UsersFour />}
       tone="success"
     />
   </section>
@@ -83,11 +76,11 @@ const InconsistencyCategoryCard = ({ category, onSelect }) => (
   <button
     type="button"
     onClick={() => onSelect(category.id)}
-    className={`app-card flex min-h-56 flex-col justify-between border-l-4 p-6 text-left transition hover:-translate-y-0.5 hover:border-[var(--primary)] hover:shadow-[0_18px_34px_rgba(25,55,95,0.12)] focus-visible:-translate-y-0.5 ${category.borderClass}`}
+    className="app-card flex min-h-56 flex-col justify-between border-l-4 p-6 text-left transition hover:-translate-y-0.5 hover:border-[var(--primary)] hover:shadow-[0_18px_34px_rgba(25,55,95,0.12)] focus-visible:-translate-y-0.5 border-[var(--border)]"
     aria-label={`Abrir auditoria ${category.title}`}
   >
     <span>
-      <span className={`inline-flex h-12 w-12 items-center justify-center rounded-xl text-sm font-bold ${category.iconClass}`}>
+      <span className="inline-flex h-7 w-7 items-center justify-center text-[var(--primary)]">
         {category.icon}
       </span>
       <span className="mt-5 block text-xl font-semibold text-[var(--text-primary)]">{category.title}</span>
@@ -423,7 +416,6 @@ export const InconsistenciaView = () => {
 
       <InconsistencySummary
         missingCpfCount={MISSING_CPF_RECORDS.length}
-        typeCount={categories.length}
         affectedTeamsCount={affectedTeamsCount}
       />
 

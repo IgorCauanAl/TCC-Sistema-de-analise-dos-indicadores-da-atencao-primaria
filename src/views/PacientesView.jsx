@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Icons } from '../components/ui/Icons'
 import { getDelayHistoryStatus } from '../utils/temporalStatus'
 import { PATIENT_CLASSIFICATIONS, PATIENT_MODULE_DATA } from '../data/pacientesModuleData'
+import { getAcsDetails, getAcsDisplayName } from '../utils/acsLabels'
 
 const stepLabels = [
   { id: 'team', label: 'Equipe' },
@@ -69,10 +70,13 @@ const getTeams = (patients) => {
 
   patients.forEach((patient) => {
     if (!teams.has(patient.teamId)) {
+      const acsDetails = getAcsDetails({ name: patient.ubs })
       teams.set(patient.teamId, {
         id: patient.teamId,
         name: patient.ubs,
         ine: patient.ine,
+        acsName: acsDetails.name,
+        microarea: acsDetails.microarea,
         patients: 0,
       })
     }
@@ -147,11 +151,11 @@ const TeamCard = ({ team, onSelect }) => (
     type="button"
     onClick={() => onSelect(team)}
     className="app-card flex min-h-28 items-center justify-between gap-4 p-5 text-left transition hover:border-[rgba(22,103,232,0.34)] hover:bg-[var(--surface-interactive)]"
-    aria-label={`Selecionar equipe ${team.name}, INE ${team.ine}`}
+    aria-label={`Selecionar agente comunitário ${getAcsDisplayName(team)}`}
   >
     <span>
-      <span className="block font-semibold text-[var(--text-primary)]">{team.name}</span>
-      <span className="mt-3 block text-xs text-[var(--text-muted)]">INE {team.ine}</span>
+      <span className="block font-semibold text-[var(--text-primary)]">{getAcsDisplayName(team)}</span>
+      <span className="mt-3 block text-xs text-[var(--text-muted)]">{team.name} · INE {team.ine}</span>
     </span>
     <span className="flex items-center gap-4">
       <span className="soft-pill px-3 py-1 text-xs font-semibold">
@@ -564,7 +568,9 @@ export const PacientesView = ({ initialClassification = null, onOpenAuditHistory
     if (!normalizedQuery) return teams
 
     return teams.filter((team) => (
-      team.name.toLowerCase().includes(normalizedQuery) || team.ine.includes(normalizedQuery)
+      getAcsDisplayName(team).toLowerCase().includes(normalizedQuery)
+      || team.name.toLowerCase().includes(normalizedQuery)
+      || team.ine.includes(normalizedQuery)
     ))
   }, [teamQuery, teams])
 
@@ -629,7 +635,7 @@ export const PacientesView = ({ initialClassification = null, onOpenAuditHistory
             <div className="grid grid-cols-1 gap-3 md:grid-cols-[16rem_1fr]">
               <IndicatorSelect value={selectedIndicator} onChange={handleSelectIndicator} />
               <label className="block" htmlFor="patient-team-search">
-                <span className="text-sm font-semibold text-[var(--text-secondary)]">Buscar equipe ou INE</span>
+                <span className="text-sm font-semibold text-[var(--text-secondary)]">Buscar agente comunitário ou microárea</span>
                 <div className="form-shell mt-2 flex items-center px-3 py-2">
                   <span className="mr-2 text-[var(--text-muted)]"><Icons.Search /></span>
                   <input
@@ -637,7 +643,7 @@ export const PacientesView = ({ initialClassification = null, onOpenAuditHistory
                     type="search"
                     value={teamQuery}
                     onChange={(event) => setTeamQuery(event.target.value)}
-                    placeholder="Digite o nome da equipe ou o INE"
+                    placeholder="Digite o nome do ACS ou da microárea"
                     className="app-input w-full border-0 bg-transparent text-sm text-[var(--text-primary)] outline-none"
                   />
                 </div>
@@ -657,9 +663,9 @@ export const PacientesView = ({ initialClassification = null, onOpenAuditHistory
         <section className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-medium text-[var(--text-muted)]">Equipe selecionada</p>
-              <h2 className="text-2xl font-semibold text-[var(--text-primary)]">{selectedTeam.name}</h2>
-              <p className="mt-1 text-sm text-[var(--text-muted)]">INE {selectedTeam.ine}</p>
+              <p className="text-sm font-medium text-[var(--text-muted)]">Agente comunitário selecionado</p>
+              <h2 className="text-2xl font-semibold text-[var(--text-primary)]">{getAcsDisplayName(selectedTeam)}</h2>
+              <p className="mt-1 text-sm text-[var(--text-muted)]">{selectedTeam.name} · INE {selectedTeam.ine}</p>
             </div>
             <div className="flex flex-wrap items-end gap-3">
               <IndicatorSelect value={selectedIndicator} onChange={handleSelectIndicator} compact />

@@ -6,11 +6,11 @@ import { formatDateTime, formatNumber, formatPercentagePoints, formatPercent } f
 import { getDashboardTotals, getFilteredTeams, getTopTeams, RANKING_METRICS } from '../utils/dashboardAggregations'
 
 const toneClasses = {
-  info: 'border-[rgba(22,103,232,0.2)] bg-[rgba(22,103,232,0.08)] text-[var(--primary-dark)]',
-  success: 'border-[rgba(6,154,88,0.22)] bg-[rgba(6,154,88,0.08)] text-[var(--success)]',
-  warning: 'border-[rgba(240,132,0,0.24)] bg-[rgba(240,132,0,0.09)] text-[var(--warning)]',
-  danger: 'border-[rgba(224,47,53,0.22)] bg-[rgba(224,47,53,0.08)] text-[var(--danger)]',
-  alert: 'border-[rgba(229,109,34,0.24)] bg-[rgba(229,109,34,0.09)] text-[var(--alert)]',
+  info: 'border-slate-300 bg-slate-50 text-slate-900',
+  success: 'border-emerald-300 bg-emerald-50 text-emerald-800',
+  warning: 'border-amber-300 bg-amber-50 text-amber-900',
+  danger: 'border-rose-200 bg-rose-50 text-rose-800',
+  alert: 'border-amber-300 bg-amber-50 text-amber-900',
 }
 
 const DASHBOARD_STATE_DEFAULTS = {
@@ -55,7 +55,7 @@ const SummaryCard = ({ icon, label, value, helper, action, footerAction, tone = 
   const content = (
     <>
       <div className="mb-4 flex items-start justify-between gap-3">
-        <div className={`flex h-10 w-10 items-center justify-center rounded-xl border ${toneClasses[tone]}`}>
+        <div className="flex h-6 w-6 items-center justify-center text-[var(--primary)]">
           {icon}
         </div>
         {action && <span className="text-xs font-semibold text-[var(--primary-dark)]">{action}</span>}
@@ -63,7 +63,7 @@ const SummaryCard = ({ icon, label, value, helper, action, footerAction, tone = 
       <p className="text-lg font-semibold leading-6 text-[var(--text-primary)]">{label}</p>
       <p className="mt-2 text-3xl font-semibold leading-none text-[var(--text-primary)]">{value}</p>
       {helper && <p className="mt-3 text-sm leading-5 text-[var(--text-muted)]">{helper}</p>}
-      {footerAction && <p className="mt-4 text-sm font-semibold text-[var(--primary-dark)]">{footerAction}</p>}
+      {footerAction && <p className="mt-4 text-sm font-semibold text-teal-700 hover:text-teal-900 hover:underline">{footerAction}</p>}
     </>
   )
 
@@ -138,7 +138,7 @@ const TeamRankingView = ({ teams, selectedMetric, totals, isExpanded, hasMoreRes
       </div>
 
       {hasMoreResults && (
-        <button type="button" onClick={onToggleExpanded} className="btn-secondary mt-5 px-4 py-2 text-sm font-semibold">
+        <button type="button" onClick={onToggleExpanded} className="btn-secondary mt-5 px-4 py-2 text-sm font-medium">
           {isExpanded ? 'Ver apenas principais equipes' : 'Ver ranking completo'}
         </button>
       )}
@@ -235,7 +235,7 @@ const TeamPerformanceBlock = ({ view, rankingTeams, situationTeams, totalTeams, 
           {view === 'ranking' ? 'Ranking e acesso rápido à situação por equipe.' : 'Tabela detalhada por equipe para o indicador selecionado.'}
         </p>
       </div>
-      <button type="button" onClick={() => onChangeView(view === 'ranking' ? 'situacao' : 'ranking')} className="btn-secondary px-4 py-2 text-sm font-semibold">
+      <button type="button" onClick={() => onChangeView(view === 'ranking' ? 'situacao' : 'ranking')} className={`${view === 'ranking' ? 'btn-primary' : 'btn-secondary'} px-4 py-2 text-sm font-medium`}>
         {view === 'ranking' ? 'Ir para situação por equipe' : 'Voltar ao ranking'}
       </button>
     </div>
@@ -574,12 +574,6 @@ export const DashboardView = ({ onOpenC1, onOpenPatients, dashboardState, onDash
         </section>
       )}
 
-      <AppliedFiltersSummary
-        quadrimesterLabel={selectedQuadrimester.label}
-        indicatorLabel={selectedIndicator.label}
-        detailTeamName={detailTeam?.name || ''}
-      />
-
       <section className="app-card flex flex-col gap-4 px-4 py-4 text-sm lg:flex-row lg:items-center lg:justify-between lg:px-5" aria-label="Contexto dos dados">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <span className="inline-flex items-center gap-2 font-semibold text-[var(--text-primary)]">
@@ -621,7 +615,7 @@ export const DashboardView = ({ onOpenC1, onOpenPatients, dashboardState, onDash
           onClick={selectedIndicator.id === 'c1' ? onOpenC1 : undefined}
         />
         <SummaryCard
-          icon={<Icons.Alert />}
+          icon={<Icons.Warning />}
           label="Acompanhamento Parcial"
           value={`${formatNumber(totals.acompanhamentoParcial)} pacientes`}
           footerAction="Ver pacientes"
@@ -629,7 +623,7 @@ export const DashboardView = ({ onOpenC1, onOpenPatients, dashboardState, onDash
           onClick={() => onOpenPatients('parcial')}
         />
         <SummaryCard
-          icon={<Icons.Alert />}
+          icon={<Icons.Siren />}
           label="Absenteísmo"
           value={`${formatNumber(totals.zerados)} pacientes`}
           footerAction="Ver pacientes"

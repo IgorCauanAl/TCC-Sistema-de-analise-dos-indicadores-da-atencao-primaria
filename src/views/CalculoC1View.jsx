@@ -36,7 +36,7 @@ const evolutionTone = (value) => {
 const SummaryCard = ({ icon, label, value, helper, comparison, tone = 'info' }) => (
   <article className="app-card p-5">
     <div className="mb-4 flex items-center justify-between gap-3">
-      <div className={`flex h-10 w-10 items-center justify-center rounded-xl border ${toneStyles[tone]}`}>
+      <div className="flex h-6 w-6 items-center justify-center text-[var(--primary)]">
         {icon}
       </div>
       {comparison && (
@@ -291,21 +291,21 @@ export const CalculoC1View = () => {
           tone={dataset.dataQuality.complete ? 'info' : 'warning'}
         />
         <SummaryCard
-          icon={<Icons.Calendar />}
+          icon={<Icons.CalendarCheck />}
           label="Demanda programada"
           value={formatNumber(summary.programmedDemand)}
           helper="Numerador utilizado no cálculo"
           tone="success"
         />
         <SummaryCard
-          icon={<Icons.Activity />}
+          icon={<Icons.TrendUp />}
           label="Demanda espontânea"
           value={formatNumber(summary.spontaneousDemand)}
           helper="Atendimentos somados ao denominador"
           tone="info"
         />
         <SummaryCard
-          icon={<Icons.Alert />}
+          icon={<Icons.Warning />}
           label="Equipes para acompanhar"
           value={formatNumber(summary.teamsToMonitor)}
           helper="Conforme situações configuradas para o período"
